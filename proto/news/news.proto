@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package news;
+
+option go_package = "homeserver/gen/news";
+
+service NewsService {
+  // StreamNews pushes a new NewsUpdate whenever the server refreshes its
+  // data (currently every 15 minutes), immediately sending the last known
+  // value on subscribe if one exists.
+  rpc StreamNews(StreamNewsRequest) returns (stream NewsUpdate);
+}
+
+message StreamNewsRequest {}
+
+message NewsUpdate {
+  int64 fetched_at_unix = 1;
+  repeated string headlines = 2;
+}

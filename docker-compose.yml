@@ -56,6 +56,15 @@ services:
       - POLL_INTERVAL_SECONDS=${NOWPLAYING_POLL_INTERVAL_SECONDS}
     restart: unless-stopped
 
+  info-server:
+    build:
+      context: .
+      dockerfile: cmd/info-server/Dockerfile
+    container_name: info-server
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+
   portainer:
     image: portainer/portainer-ce:lts # CE is the free tier; "lts" tracks stable releases (no "latest" tag is published)
     container_name: portainer

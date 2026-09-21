@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package weather;
+
+option go_package = "homeserver/gen/weather";
+
+service WeatherService {
+  // StreamWeather pushes a new WeatherUpdate whenever the server refreshes
+  // its data (currently every 15 minutes), immediately sending the last
+  // known value on subscribe if one exists.
+  rpc StreamWeather(StreamWeatherRequest) returns (stream WeatherUpdate);
+}
+
+message StreamWeatherRequest {}
+
+// Category buckets wttr.in's WorldWeatherOnline condition codes into a
+// handful of icon/display groups. The server does the bucketing so clients
+// never need to know wttr.in's raw numeric code scheme.
+enum Category {
+  CATEGORY_UNKNOWN = 0;
+  CATEGORY_SUNNY = 1;
+  CATEGORY_PARTLY_CLOUDY = 2;
+  CATEGORY_CLOUDY = 3;
+  CATEGORY_FOG = 4;
+  CATEGORY_RAIN = 5;
+  CATEGORY_THUNDER = 6;
+  CATEGORY_SNOW = 7;
+  CATEGORY_SLEET = 8;
+}
+
+enum MoonPhase {
+  MOON_PHASE_UNKNOWN = 0;
+  MOON_PHASE_NEW_MOON = 1;
+  MOON_PHASE_WAXING_CRESCENT = 2;
+  MOON_PHASE_FIRST_QUARTER = 3;
+  MOON_PHASE_WAXING_GIBBOUS = 4;
+  MOON_PHASE_FULL_MOON = 5;
+  MOON_PHASE_WANING_GIBBOUS = 6;
+  MOON_PHASE_LAST_QUARTER = 7;
+  MOON_PHASE_WANING_CRESCENT = 8;
+}
+
+message WeatherUpdate {
+  int64 fetched_at_unix = 1;
+
+  string location = 2;
+
+  string current_desc = 3;
+  Category current_category = 4;
+  string temp_c = 5;
+  string feels_like_c = 6;
+  string humidity = 7;
+  string wind_kmph = 8;
+  string wind_dir = 9;
+  string uv_index = 10;
+  string visibility_km = 11;
+
+  string today_sunrise = 12;
+  string today_sunset = 13;
+  MoonPhase moon_phase = 14;
+  string moon_illum = 15;
+
+  string tomorrow_desc = 16;
+  Category tomorrow_category = 17;
+  string tomorrow_max_c = 18;
+  string tomorrow_min_c = 19;
+  string tomorrow_wind_kmph = 20;
+  string tomorrow_chance_of_rain = 21;
+}

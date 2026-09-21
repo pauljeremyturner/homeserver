@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package crypto;
+
+option go_package = "homeserver/gen/crypto";
+
+service CryptoService {
+  // StreamCrypto pushes a CryptoUpdate per coin whenever the server refreshes
+  // its data (currently every 30 minutes), immediately sending the last
+  // known value for each tracked coin on subscribe.
+  rpc StreamCrypto(StreamCryptoRequest) returns (stream CryptoUpdate);
+}
+
+message StreamCryptoRequest {}
+
+message CryptoUpdate {
+  string symbol = 1; // e.g. "BTC", "ETH"
+  int64 fetched_at_unix = 2;
+  repeated double prices = 3; // daily closes vs GBP, oldest first
+  double latest = 4;
+  double change_pct = 5; // change over the price series window
+  double min = 6;
+  double max = 7;
+}
