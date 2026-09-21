@@ -40,6 +40,8 @@ func envOr(key, fallback string) string {
 
 func main() {
 	addr := envOr("LISTEN_ADDR", ":9090")
+	walletAddr := os.Getenv("WALLET_BTC_ADDRESS")
+	walletLabel := envOr("WALLET_BTC_LABEL", "BTC Wallet")
 
 	weatherBC := broadcast.New[*weatherpb.WeatherUpdate]()
 	newsBC := broadcast.New[*newspb.NewsUpdate]()
@@ -47,11 +49,17 @@ func main() {
 	for _, c := range trackedCoins {
 		cryptoBCs[c.symbol] = broadcast.New[*cryptopb.CryptoUpdate]()
 	}
+	walletBC := broadcast.New[*cryptopb.WalletBalanceUpdate]()
 
 	go pollWeather(weatherBC)
 	go pollNews(newsBC)
 	for _, c := range trackedCoins {
 		go pollCrypto(c, cryptoBCs[c.symbol])
+	}
+	if walletAddr != "" {
+		go pollWallet(walletAddr, walletLabel, walletBC)
+	} else {
+		log.Print("WALLET_BTC_ADDRESS not set, wallet balance stream will stay empty")
 	}
 
 	lis, err := net.Listen("tcp", addr)
@@ -62,7 +70,7 @@ func main() {
 	srv := grpc.NewServer()
 	weatherpb.RegisterWeatherServiceServer(srv, &weatherServer{bc: weatherBC})
 	newspb.RegisterNewsServiceServer(srv, &newsServer{bc: newsBC})
-	cryptopb.RegisterCryptoServiceServer(srv, &cryptoServer{bcs: cryptoBCs})
+	cryptopb.RegisterCryptoServiceServer(srv, &cryptoServer{bcs: cryptoBCs, walletBC: walletBC})
 
 	log.Printf("info-server listening on %s", addr)
 	if err := srv.Serve(lis); err != nil {
@@ -155,9 +163,43 @@ func (s *newsServer) StreamNews(_ *newspb.StreamNewsRequest, stream newspb.NewsS
 	}
 }
 
+func pollWallet(address, label string, bc *broadcast.Broadcaster[*cryptopb.WalletBalanceUpdate]) {
+	poll := func() {
+		update, err := fetchWalletBalance(address, label)
+		if err != nil {
+			log.Printf("wallet: fetch failed: %v", err)
+			return
+		}
+		bc.Publish(update)
+	}
+	poll()
+	for range time.Tick(cryptoInterval) {
+		poll()
+	}
+}
+
 type cryptoServer struct {
 	cryptopb.UnimplementedCryptoServiceServer
-	bcs map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate]
+	bcs      map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate]
+	walletBC *broadcast.Broadcaster[*cryptopb.WalletBalanceUpdate]
+}
+
+// StreamWalletBalance streams the configured wallet's balance. If no wallet
+// was configured (WALLET_BTC_ADDRESS unset), the underlying broadcaster never
+// publishes, so this simply never sends anything — not an error.
+func (s *cryptoServer) StreamWalletBalance(_ *cryptopb.StreamWalletBalanceRequest, stream cryptopb.CryptoService_StreamWalletBalanceServer) error {
+	ch := s.walletBC.Subscribe()
+	defer s.walletBC.Unsubscribe(ch)
+	for {
+		select {
+		case v := <-ch:
+			if err := stream.Send(v); err != nil {
+				return err
+			}
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
 }
 
 // StreamCrypto fans in every tracked coin's broadcaster into one output

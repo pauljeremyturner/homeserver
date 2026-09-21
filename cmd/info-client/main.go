@@ -56,6 +56,7 @@ type model struct {
 	weather *weatherpb.WeatherUpdate
 	news    *newspb.NewsUpdate
 	crypto  map[string]*cryptopb.CryptoUpdate
+	wallet  *cryptopb.WalletBalanceUpdate
 
 	boardTempC   float64
 	boardTempErr error
@@ -108,6 +109,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case cryptoMsg:
 		m.crypto[msg.Symbol] = msg
+		return m, nil
+	case walletMsg:
+		m.wallet = msg
 		return m, nil
 	}
 	return m, nil
@@ -247,6 +251,12 @@ func (m model) View() string {
 
 	renderCrypto(&b, m.crypto["BTC"])
 	renderCrypto(&b, m.crypto["ETH"])
+
+	if m.wallet != nil {
+		b.WriteString(labelStyle.Render(m.wallet.Label+"  ") +
+			tempStyle.Render(fmt.Sprintf("%.8f BTC", m.wallet.BalanceBtc)))
+		b.WriteString("\n")
+	}
 
 	b.WriteString(rule())
 	b.WriteString("\n")

@@ -19,6 +19,7 @@ const streamReconnectDelay = 5 * time.Second
 type weatherMsg *weatherpb.WeatherUpdate
 type newsMsg *newspb.NewsUpdate
 type cryptoMsg *cryptopb.CryptoUpdate
+type walletMsg *cryptopb.WalletBalanceUpdate
 
 func dialInfoServer(addr string) (*grpc.ClientConn, error) {
 	return grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -92,5 +93,12 @@ func startStreams(ctx context.Context, conn *grpc.ClientConn, p *tea.Program) {
 			return cryptoClient.StreamCrypto(ctx, &cryptopb.StreamCryptoRequest{})
 		},
 		func(u *cryptopb.CryptoUpdate) { p.Send(cryptoMsg(u)) },
+	)
+
+	go streamLoop(ctx, "wallet",
+		func(ctx context.Context) (grpc.ServerStreamingClient[cryptopb.WalletBalanceUpdate], error) {
+			return cryptoClient.StreamWalletBalance(ctx, &cryptopb.StreamWalletBalanceRequest{})
+		},
+		func(u *cryptopb.WalletBalanceUpdate) { p.Send(walletMsg(u)) },
 	)
 }

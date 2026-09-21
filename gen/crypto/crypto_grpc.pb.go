@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CryptoService_StreamCrypto_FullMethodName = "/crypto.CryptoService/StreamCrypto"
+	CryptoService_StreamCrypto_FullMethodName        = "/crypto.CryptoService/StreamCrypto"
+	CryptoService_StreamWalletBalance_FullMethodName = "/crypto.CryptoService/StreamWalletBalance"
 )
 
 // CryptoServiceClient is the client API for CryptoService service.
@@ -30,6 +31,10 @@ type CryptoServiceClient interface {
 	// its data (currently every 30 minutes), immediately sending the last
 	// known value for each tracked coin on subscribe.
 	StreamCrypto(ctx context.Context, in *StreamCryptoRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CryptoUpdate], error)
+	// StreamWalletBalance pushes the configured wallet's on-chain balance
+	// whenever the server refreshes it. If no wallet is configured server-side,
+	// nothing is ever sent on this stream.
+	StreamWalletBalance(ctx context.Context, in *StreamWalletBalanceRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WalletBalanceUpdate], error)
 }
 
 type cryptoServiceClient struct {
@@ -59,6 +64,25 @@ func (c *cryptoServiceClient) StreamCrypto(ctx context.Context, in *StreamCrypto
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type CryptoService_StreamCryptoClient = grpc.ServerStreamingClient[CryptoUpdate]
 
+func (c *cryptoServiceClient) StreamWalletBalance(ctx context.Context, in *StreamWalletBalanceRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WalletBalanceUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &CryptoService_ServiceDesc.Streams[1], CryptoService_StreamWalletBalance_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamWalletBalanceRequest, WalletBalanceUpdate]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type CryptoService_StreamWalletBalanceClient = grpc.ServerStreamingClient[WalletBalanceUpdate]
+
 // CryptoServiceServer is the server API for CryptoService service.
 // All implementations must embed UnimplementedCryptoServiceServer
 // for forward compatibility.
@@ -67,6 +91,10 @@ type CryptoServiceServer interface {
 	// its data (currently every 30 minutes), immediately sending the last
 	// known value for each tracked coin on subscribe.
 	StreamCrypto(*StreamCryptoRequest, grpc.ServerStreamingServer[CryptoUpdate]) error
+	// StreamWalletBalance pushes the configured wallet's on-chain balance
+	// whenever the server refreshes it. If no wallet is configured server-side,
+	// nothing is ever sent on this stream.
+	StreamWalletBalance(*StreamWalletBalanceRequest, grpc.ServerStreamingServer[WalletBalanceUpdate]) error
 	mustEmbedUnimplementedCryptoServiceServer()
 }
 
@@ -79,6 +107,9 @@ type UnimplementedCryptoServiceServer struct{}
 
 func (UnimplementedCryptoServiceServer) StreamCrypto(*StreamCryptoRequest, grpc.ServerStreamingServer[CryptoUpdate]) error {
 	return status.Error(codes.Unimplemented, "method StreamCrypto not implemented")
+}
+func (UnimplementedCryptoServiceServer) StreamWalletBalance(*StreamWalletBalanceRequest, grpc.ServerStreamingServer[WalletBalanceUpdate]) error {
+	return status.Error(codes.Unimplemented, "method StreamWalletBalance not implemented")
 }
 func (UnimplementedCryptoServiceServer) mustEmbedUnimplementedCryptoServiceServer() {}
 func (UnimplementedCryptoServiceServer) testEmbeddedByValue()                       {}
@@ -112,6 +143,17 @@ func _CryptoService_StreamCrypto_Handler(srv interface{}, stream grpc.ServerStre
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type CryptoService_StreamCryptoServer = grpc.ServerStreamingServer[CryptoUpdate]
 
+func _CryptoService_StreamWalletBalance_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamWalletBalanceRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(CryptoServiceServer).StreamWalletBalance(m, &grpc.GenericServerStream[StreamWalletBalanceRequest, WalletBalanceUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type CryptoService_StreamWalletBalanceServer = grpc.ServerStreamingServer[WalletBalanceUpdate]
+
 // CryptoService_ServiceDesc is the grpc.ServiceDesc for CryptoService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -123,6 +165,11 @@ var CryptoService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamCrypto",
 			Handler:       _CryptoService_StreamCrypto_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamWalletBalance",
+			Handler:       _CryptoService_StreamWalletBalance_Handler,
 			ServerStreams: true,
 		},
 	},

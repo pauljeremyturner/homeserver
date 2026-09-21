@@ -149,6 +149,113 @@ func (x *CryptoUpdate) GetMax() float64 {
 	return 0
 }
 
+type StreamWalletBalanceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamWalletBalanceRequest) Reset() {
+	*x = StreamWalletBalanceRequest{}
+	mi := &file_crypto_crypto_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamWalletBalanceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamWalletBalanceRequest) ProtoMessage() {}
+
+func (x *StreamWalletBalanceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_crypto_crypto_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamWalletBalanceRequest.ProtoReflect.Descriptor instead.
+func (*StreamWalletBalanceRequest) Descriptor() ([]byte, []int) {
+	return file_crypto_crypto_proto_rawDescGZIP(), []int{2}
+}
+
+// WalletBalanceUpdate deliberately carries no address — only a display
+// label — so the wallet address never travels over the wire or ends up in
+// client-side logs/state.
+type WalletBalanceUpdate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Label         string                 `protobuf:"bytes,1,opt,name=label,proto3" json:"label,omitempty"` // display label, e.g. "BTC Wallet"
+	FetchedAtUnix int64                  `protobuf:"varint,2,opt,name=fetched_at_unix,json=fetchedAtUnix,proto3" json:"fetched_at_unix,omitempty"`
+	BalanceBtc    float64                `protobuf:"fixed64,3,opt,name=balance_btc,json=balanceBtc,proto3" json:"balance_btc,omitempty"`
+	BalanceSats   int64                  `protobuf:"varint,4,opt,name=balance_sats,json=balanceSats,proto3" json:"balance_sats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WalletBalanceUpdate) Reset() {
+	*x = WalletBalanceUpdate{}
+	mi := &file_crypto_crypto_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WalletBalanceUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WalletBalanceUpdate) ProtoMessage() {}
+
+func (x *WalletBalanceUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_crypto_crypto_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WalletBalanceUpdate.ProtoReflect.Descriptor instead.
+func (*WalletBalanceUpdate) Descriptor() ([]byte, []int) {
+	return file_crypto_crypto_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *WalletBalanceUpdate) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *WalletBalanceUpdate) GetFetchedAtUnix() int64 {
+	if x != nil {
+		return x.FetchedAtUnix
+	}
+	return 0
+}
+
+func (x *WalletBalanceUpdate) GetBalanceBtc() float64 {
+	if x != nil {
+		return x.BalanceBtc
+	}
+	return 0
+}
+
+func (x *WalletBalanceUpdate) GetBalanceSats() int64 {
+	if x != nil {
+		return x.BalanceSats
+	}
+	return 0
+}
+
 var File_crypto_crypto_proto protoreflect.FileDescriptor
 
 const file_crypto_crypto_proto_rawDesc = "" +
@@ -163,9 +270,17 @@ const file_crypto_crypto_proto_rawDesc = "" +
 	"\n" +
 	"change_pct\x18\x05 \x01(\x01R\tchangePct\x12\x10\n" +
 	"\x03min\x18\x06 \x01(\x01R\x03min\x12\x10\n" +
-	"\x03max\x18\a \x01(\x01R\x03max2T\n" +
+	"\x03max\x18\a \x01(\x01R\x03max\"\x1c\n" +
+	"\x1aStreamWalletBalanceRequest\"\x97\x01\n" +
+	"\x13WalletBalanceUpdate\x12\x14\n" +
+	"\x05label\x18\x01 \x01(\tR\x05label\x12&\n" +
+	"\x0ffetched_at_unix\x18\x02 \x01(\x03R\rfetchedAtUnix\x12\x1f\n" +
+	"\vbalance_btc\x18\x03 \x01(\x01R\n" +
+	"balanceBtc\x12!\n" +
+	"\fbalance_sats\x18\x04 \x01(\x03R\vbalanceSats2\xae\x01\n" +
 	"\rCryptoService\x12C\n" +
-	"\fStreamCrypto\x12\x1b.crypto.StreamCryptoRequest\x1a\x14.crypto.CryptoUpdate0\x01B\x17Z\x15homeserver/gen/cryptob\x06proto3"
+	"\fStreamCrypto\x12\x1b.crypto.StreamCryptoRequest\x1a\x14.crypto.CryptoUpdate0\x01\x12X\n" +
+	"\x13StreamWalletBalance\x12\".crypto.StreamWalletBalanceRequest\x1a\x1b.crypto.WalletBalanceUpdate0\x01B\x17Z\x15homeserver/gen/cryptob\x06proto3"
 
 var (
 	file_crypto_crypto_proto_rawDescOnce sync.Once
@@ -179,16 +294,20 @@ func file_crypto_crypto_proto_rawDescGZIP() []byte {
 	return file_crypto_crypto_proto_rawDescData
 }
 
-var file_crypto_crypto_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_crypto_crypto_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_crypto_crypto_proto_goTypes = []any{
-	(*StreamCryptoRequest)(nil), // 0: crypto.StreamCryptoRequest
-	(*CryptoUpdate)(nil),        // 1: crypto.CryptoUpdate
+	(*StreamCryptoRequest)(nil),        // 0: crypto.StreamCryptoRequest
+	(*CryptoUpdate)(nil),               // 1: crypto.CryptoUpdate
+	(*StreamWalletBalanceRequest)(nil), // 2: crypto.StreamWalletBalanceRequest
+	(*WalletBalanceUpdate)(nil),        // 3: crypto.WalletBalanceUpdate
 }
 var file_crypto_crypto_proto_depIdxs = []int32{
 	0, // 0: crypto.CryptoService.StreamCrypto:input_type -> crypto.StreamCryptoRequest
-	1, // 1: crypto.CryptoService.StreamCrypto:output_type -> crypto.CryptoUpdate
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: crypto.CryptoService.StreamWalletBalance:input_type -> crypto.StreamWalletBalanceRequest
+	1, // 2: crypto.CryptoService.StreamCrypto:output_type -> crypto.CryptoUpdate
+	3, // 3: crypto.CryptoService.StreamWalletBalance:output_type -> crypto.WalletBalanceUpdate
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -205,7 +324,7 @@ func file_crypto_crypto_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_crypto_crypto_proto_rawDesc), len(file_crypto_crypto_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

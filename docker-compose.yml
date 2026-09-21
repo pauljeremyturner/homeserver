@@ -63,6 +63,11 @@ services:
     container_name: info-server
     ports:
       - 9090:9090
+    environment:
+      # Optional: showing a BTC wallet balance in the crypto stream. Leave
+      # WALLET_BTC_ADDRESS unset to disable it entirely (see .env.example).
+      - WALLET_BTC_ADDRESS=${WALLET_BTC_ADDRESS}
+      - WALLET_BTC_LABEL=${WALLET_BTC_LABEL}
     restart: unless-stopped
 
   portainer:

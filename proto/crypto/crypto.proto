@@ -9,6 +9,11 @@ service CryptoService {
   // its data (currently every 30 minutes), immediately sending the last
   // known value for each tracked coin on subscribe.
   rpc StreamCrypto(StreamCryptoRequest) returns (stream CryptoUpdate);
+
+  // StreamWalletBalance pushes the configured wallet's on-chain balance
+  // whenever the server refreshes it. If no wallet is configured server-side,
+  // nothing is ever sent on this stream.
+  rpc StreamWalletBalance(StreamWalletBalanceRequest) returns (stream WalletBalanceUpdate);
 }
 
 message StreamCryptoRequest {}
@@ -21,4 +26,16 @@ message CryptoUpdate {
   double change_pct = 5; // change over the price series window
   double min = 6;
   double max = 7;
+}
+
+message StreamWalletBalanceRequest {}
+
+// WalletBalanceUpdate deliberately carries no address — only a display
+// label — so the wallet address never travels over the wire or ends up in
+// client-side logs/state.
+message WalletBalanceUpdate {
+  string label = 1; // display label, e.g. "BTC Wallet"
+  int64 fetched_at_unix = 2;
+  double balance_btc = 3;
+  int64 balance_sats = 4;
 }
