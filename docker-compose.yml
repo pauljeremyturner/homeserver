@@ -1,0 +1,68 @@
+services:
+  minidlna:
+    image: lscr.io/linuxserver/minidlna:latest
+    container_name: minidlna
+    network_mode: host # DLNA/SSDP discovery needs host networking, not port mapping
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./config/minidlna:/config:Z
+      - /home/paul:/media # placeholder — don't :Z-label the whole home dir; add :z once this points at a real media path
+    restart: unless-stopped
+
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    network_mode: host # keeps real client IPs for per-device stats (bridge/NAT hides them behind the docker gateway)
+    cap_add:
+      - NET_ADMIN # recommended by upstream, not strictly required since we're not using Pi-hole's DHCP server
+    environment:
+      - TZ=${TZ}
+      - FTLCONF_webserver_api_password=${PIHOLE_PASSWORD}
+    volumes:
+      - ./config/pihole/etc-pihole:/etc/pihole:Z
+      - ./config/pihole/etc-dnsmasq.d:/etc/dnsmasq.d:Z
+    restart: unless-stopped
+
+  filebrowser:
+    image: lscr.io/linuxserver/filebrowser:latest
+    container_name: filebrowser
+    ports:
+      - 8080:80
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./config/filebrowser:/config:Z
+      - /home/paul/content:/srv:Z # placeholder — tweak later
+    restart: unless-stopped
+
+  nowplaying:
+    build:
+      context: .
+      dockerfile: cmd/nowplaying/Dockerfile
+    container_name: nowplaying
+    ports:
+      - 8090:8090
+    environment:
+      # Points at the temporary Rygel dev renderer on the Fedora dev box.
+      # Swap to the real renderer's AVTransport control URL once hardware exists —
+      # code doesn't change, just this value.
+      - RENDERER_CONTROL_URL=${RENDERER_CONTROL_URL}
+      - RENDERER_SERVICE_TYPE=${RENDERER_SERVICE_TYPE}
+      - POLL_INTERVAL_SECONDS=${NOWPLAYING_POLL_INTERVAL_SECONDS}
+    restart: unless-stopped
+
+  portainer:
+    image: portainer/portainer-ce:lts # CE is the free tier; "lts" tracks stable releases (no "latest" tag is published)
+    container_name: portainer
+    ports:
+      - 8000:8000 # edge agent tunnel, optional but harmless to expose
+      - 9443:9443 # web UI (HTTPS)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/portainer:/data:Z
+    restart: unless-stopped

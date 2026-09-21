@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Now Playing</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    color: #eee;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  #layout {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  #art-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+  #art.loaded { display: block; }
+  #art-placeholder {
+    color: #444;
+    font-size: 18px;
+  }
+  #meta {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    padding: 20px 18px;
+    text-align: center;
+  }
+  #title {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.25;
+    margin-bottom: 8px;
+    word-wrap: break-word;
+  }
+  #artist {
+    font-size: 20px;
+    color: #bbb;
+    margin-bottom: 4px;
+    word-wrap: break-word;
+  }
+  #album {
+    font-size: 16px;
+    color: #888;
+    word-wrap: break-word;
+  }
+  #state-badge {
+    margin-top: 14px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #555;
+  }
+  #state-badge.playing { color: #4caf50; }
+  #state-badge.paused { color: #e0a03c; }
+  #state-badge.stale { color: #c0392b; }
+
+  /* Landscape: art on the left as a square, text stacked on the right */
+  @media (orientation: landscape) {
+    #layout {
+      flex-direction: row;
+    }
+    #art-wrap {
+      flex: 0 0 auto;
+      width: auto;
+      height: 100%;
+      aspect-ratio: 1 / 1;
+    }
+    #meta {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: left;
+      padding: 24px 28px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <div id="art-wrap">
+    <img id="art" alt="">
+    <div id="art-placeholder">No signal</div>
+  </div>
+  <div id="meta">
+    <div id="title">&nbsp;</div>
+    <div id="artist">&nbsp;</div>
+    <div id="album">&nbsp;</div>
+    <div id="state-badge">&nbsp;</div>
+  </div>
+</div>
+
+<script>
+var artEl = document.getElementById('art');
+var artPlaceholder = document.getElementById('art-placeholder');
+var titleEl = document.getElementById('title');
+var artistEl = document.getElementById('artist');
+var albumEl = document.getElementById('album');
+var stateEl = document.getElementById('state-badge');
+var lastArtURL = '';
+
+function setText(el, text) {
+  el.textContent = text && text.length ? text : ' ';
+}
+
+function applyState(d) {
+  if (d.stale) {
+    stateEl.textContent = 'connection lost';
+    stateEl.className = 'stale';
+    return;
+  }
+  var playing = d.state === 'PLAYING' || d.state === 'PAUSED_PLAYBACK';
+  if (!playing) {
+    setText(titleEl, '');
+    setText(artistEl, '');
+    setText(albumEl, '');
+    stateEl.textContent = 'nothing playing';
+    stateEl.className = '';
+    if (lastArtURL !== '') {
+      artEl.className = '';
+      artPlaceholder.style.display = 'flex';
+      lastArtURL = '';
+    }
+    return;
+  }
+  setText(titleEl, d.title);
+  setText(artistEl, d.artist);
+  setText(albumEl, d.album);
+  stateEl.textContent = d.state === 'PLAYING' ? 'playing' : 'paused';
+  stateEl.className = d.state === 'PLAYING' ? 'playing' : 'paused';
+
+  if (d.album_art_url && d.album_art_url !== lastArtURL) {
+    artEl.src = d.album_art_url;
+    artEl.className = 'loaded';
+    artPlaceholder.style.display = 'none';
+    lastArtURL = d.album_art_url;
+  } else if (!d.album_art_url && lastArtURL !== '') {
+    artEl.className = '';
+    artPlaceholder.style.display = 'flex';
+    lastArtURL = '';
+  }
+}
+
+function poll() {
+  fetch('/api/now-playing')
+    .then(function (r) { return r.json(); })
+    .then(applyState)
+    .catch(function () {
+      stateEl.textContent = 'connection lost';
+      stateEl.className = 'stale';
+    })
+    .finally(function () {
+      setTimeout(poll, 3000);
+    });
+}
+
+poll();
+</script>
+</body>
+</html>
