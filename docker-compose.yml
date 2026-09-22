@@ -84,6 +84,8 @@ services:
   portainer:
     image: portainer/portainer-ce:lts # CE is the free tier; "lts" tracks stable releases (no "latest" tag is published)
     container_name: portainer
+    security_opt:
+      - label:disable # Portainer needs to manage the host's Docker daemon over its socket — :z alone fixes the socket file's label but SELinux still denies "connectto" against the daemon's own container_runtime_t domain, since that's specifically a privileged-container operation
     ports:
       - 8000:8000 # edge agent tunnel, optional but harmless to expose
       - 9443:9443 # web UI (HTTPS)
