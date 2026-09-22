@@ -1,15 +1,27 @@
 services:
-  minidlna:
-    image: lscr.io/linuxserver/minidlna:latest
-    container_name: minidlna
-    network_mode: host # DLNA/SSDP discovery needs host networking, not port mapping
+  # lscr.io/linuxserver/minidlna was retired upstream (registry now returns
+  # "denied" for the repo — it no longer exists), so Plex replaces it as the
+  # media source. Its DLNA server (Settings > Network > Enable DLNA server,
+  # in the web UI) covers the same role.
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    network_mode: host # required for Plex/DLNA discovery (GDM) to work on the LAN
+    security_opt:
+      - label:disable # /music lives on exFAT, which can't hold SELinux xattrs — :z/:Z relabeling is a no-op there, so skip SELinux label enforcement for this container instead
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - VERSION=docker
+      # Optional: a claim token from https://plex.tv/claim (valid ~4 minutes)
+      # to auto-link this server to your Plex account on first run. Leave
+      # empty to instead complete setup manually via the web UI at
+      # http://<host>:32400/web the first time it starts.
+      - PLEX_CLAIM=${PLEX_CLAIM}
     volumes:
-      - ./config/minidlna:/config:Z
-      - /home/paul:/media # placeholder — don't :Z-label the whole home dir; add :z once this points at a real media path
+      - ./config/plex:/config:Z
+      - /mnt/dockcase/home/paul/Music:/music # no :z — see security_opt above, SELinux labeling doesn't apply on exFAT anyway
     restart: unless-stopped
 
   pihole:
@@ -48,9 +60,8 @@ services:
     ports:
       - 8090:8090
     environment:
-      # Points at the temporary Rygel dev renderer on the Fedora dev box.
-      # Swap to the real renderer's AVTransport control URL once hardware exists —
-      # code doesn't change, just this value.
+      # Renderer target is env-driven — swapping devices is just changing
+      # these two values, no code change.
       - RENDERER_CONTROL_URL=${RENDERER_CONTROL_URL}
       - RENDERER_SERVICE_TYPE=${RENDERER_SERVICE_TYPE}
       - POLL_INTERVAL_SECONDS=${NOWPLAYING_POLL_INTERVAL_SECONDS}

@@ -1,2 +1,10 @@
 .env
 *.log
+
+# Runtime state for Docker services (tokens, caches, DBs, etc.) — never
+# committed. Only the directory structure is tracked, via .gitkeep. (Order
+# matters: un-ignore directories first, or the .gitkeep negation below can't
+# reach into an already-ignored parent.)
+/config/**
+!/config/**/
+!/config/**/.gitkeep
