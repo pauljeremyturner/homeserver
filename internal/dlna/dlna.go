@@ -23,6 +23,20 @@ type Position struct {
 	RelTime     string
 }
 
+// httpClient is shared across all SOAP calls, with keep-alives disabled.
+// Some cheap embedded renderers' HTTP servers advertise persistent
+// connections but silently close them right after responding — Go's default
+// transport would then try to reuse that dead pooled connection on the next
+// poll and fail with a spurious "EOF". A fresh TCP connection per request
+// avoids that at the cost of a little extra connection setup, which is a
+// non-issue at this poll cadence (a few requests every few seconds).
+var httpClient = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		DisableKeepAlives: true,
+	},
+}
+
 // soapCall posts a UPnP SOAP action to a control URL and returns the raw response body.
 func soapCall(controlURL, serviceType, action, args string) ([]byte, error) {
 	body := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
@@ -39,8 +53,7 @@ func soapCall(controlURL, serviceType, action, args string) ([]byte, error) {
 	req.Header.Set("Content-Type", `text/xml; charset="utf-8"`)
 	req.Header.Set("SOAPAction", fmt.Sprintf(`"%s#%s"`, serviceType, action))
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
