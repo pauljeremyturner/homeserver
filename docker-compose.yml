@@ -65,6 +65,13 @@ services:
       - RENDERER_CONTROL_URL=${RENDERER_CONTROL_URL}
       - RENDERER_SERVICE_TYPE=${RENDERER_SERVICE_TYPE}
       - POLL_INTERVAL_SECONDS=${NOWPLAYING_POLL_INTERVAL_SECONDS}
+      # Album art fallback: Plex's DLNA art links go stale (401) across Plex
+      # restarts, so nowplaying looks the album up via the Plex API instead.
+      # Token = PlexOnlineToken in config/plex/.../Preferences.xml.
+      - PLEX_URL=http://host.docker.internal:32400
+      - PLEX_TOKEN=${PLEX_TOKEN}
+    extra_hosts:
+      - host.docker.internal:host-gateway # Plex runs with network_mode: host
     restart: unless-stopped
 
   info-server:

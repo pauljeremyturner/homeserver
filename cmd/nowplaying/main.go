@@ -74,14 +74,16 @@ func main() {
 	addr := envOr("LISTEN_ADDR", ":8090")
 
 	s := &store{}
+	art := newArtCache(os.Getenv("PLEX_URL"), os.Getenv("PLEX_TOKEN"))
 
-	go pollLoop(s, controlURL, serviceType, time.Duration(pollSeconds)*time.Second)
+	go pollLoop(s, art, controlURL, serviceType, time.Duration(pollSeconds)*time.Second)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/now-playing", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.get())
 	})
+	mux.HandleFunc("/api/art", art.serveHTTP)
 
 	webRoot, err := fs.Sub(webFiles, "web")
 	if err != nil {
@@ -93,7 +95,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
-func pollLoop(s *store, controlURL, serviceType string, interval time.Duration) {
+func pollLoop(s *store, art *artCache, controlURL, serviceType string, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -117,7 +119,7 @@ func pollLoop(s *store, controlURL, serviceType string, interval time.Duration) 
 			np.Artist = pos.Artist
 			np.Album = pos.Album
 			np.TrackNumber = pos.TrackNumber
-			np.AlbumArtURL = pos.AlbumArtURL
+			np.AlbumArtURL = art.resolve(pos.AlbumArtURL, pos.Album, pos.Artist)
 			np.Duration = pos.Duration
 			np.RelTime = pos.RelTime
 		}
