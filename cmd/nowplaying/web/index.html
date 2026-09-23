@@ -159,6 +159,12 @@ function showToggle(state) {
   iconPlay.style.display = state === 'PLAYING' ? 'none' : 'block';
 }
 
+// The kiosk app has no reload control, so tapping the art reloads the page
+// (picks up a new version of this page after nowplaying is rebuilt).
+document.getElementById('art-wrap').addEventListener('click', function () {
+  location.reload();
+});
+
 toggleEl.addEventListener('click', function () {
   if (toggleBusy) return;
   toggleBusy = true;
