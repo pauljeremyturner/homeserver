@@ -81,6 +81,22 @@
   #state-badge.playing { color: #4caf50; }
   #state-badge.paused { color: #e0a03c; }
   #state-badge.stale { color: #c0392b; }
+  #toggle {
+    display: none;
+    margin: 16px auto 0;
+    width: 88px;
+    height: 88px;
+    border: 0;
+    border-radius: 50%;
+    background: #222;
+    color: #eee;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #toggle.visible { display: block; }
+  #toggle:active { background: #333; }
+  #toggle.busy { opacity: 0.5; }
+  #toggle svg { width: 40px; height: 40px; display: block; margin: 0 auto; fill: currentColor; }
 
   /* Landscape: art on the left as a square, text stacked on the right */
   @media (orientation: landscape) {
@@ -101,6 +117,7 @@
       text-align: left;
       padding: 24px 28px;
     }
+    #toggle { margin: 16px 0 0; }
   }
 </style>
 </head>
@@ -115,6 +132,10 @@
     <div id="artist">&nbsp;</div>
     <div id="album">&nbsp;</div>
     <div id="state-badge">&nbsp;</div>
+    <button id="toggle" type="button" aria-label="Play/pause">
+      <svg id="icon-pause" viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      <svg id="icon-play" viewBox="0 0 24 24" style="display:none"><path d="M8 5v14l11-7z"/></svg>
+    </button>
   </div>
 </div>
 
@@ -125,7 +146,36 @@ var titleEl = document.getElementById('title');
 var artistEl = document.getElementById('artist');
 var albumEl = document.getElementById('album');
 var stateEl = document.getElementById('state-badge');
+var toggleEl = document.getElementById('toggle');
+var iconPause = document.getElementById('icon-pause');
+var iconPlay = document.getElementById('icon-play');
 var lastArtURL = '';
+var toggleBusy = false;
+
+function showToggle(state) {
+  var active = state === 'PLAYING' || state === 'PAUSED_PLAYBACK';
+  toggleEl.className = active ? 'visible' + (toggleBusy ? ' busy' : '') : '';
+  iconPause.style.display = state === 'PLAYING' ? 'block' : 'none';
+  iconPlay.style.display = state === 'PLAYING' ? 'none' : 'block';
+}
+
+toggleEl.addEventListener('click', function () {
+  if (toggleBusy) return;
+  toggleBusy = true;
+  toggleEl.className = 'visible busy';
+  fetch('/api/toggle', { method: 'POST' })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (d) {
+      stateEl.textContent = d.state === 'PLAYING' ? 'playing' : 'paused';
+      stateEl.className = d.state === 'PLAYING' ? 'playing' : 'paused';
+      toggleBusy = false;
+      showToggle(d.state);
+    })
+    .catch(function () {
+      toggleBusy = false;
+      toggleEl.className = 'visible';
+    });
+});
 
 function setText(el, text) {
   el.textContent = text && text.length ? text : ' ';
@@ -135,8 +185,10 @@ function applyState(d) {
   if (d.stale) {
     stateEl.textContent = 'connection lost';
     stateEl.className = 'stale';
+    showToggle('');
     return;
   }
+  if (!toggleBusy) showToggle(d.state);
   var playing = d.state === 'PLAYING' || d.state === 'PAUSED_PLAYBACK';
   if (!playing) {
     setText(titleEl, '');

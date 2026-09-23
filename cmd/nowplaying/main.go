@@ -48,6 +48,14 @@ func (s *store) set(np nowPlaying) {
 	s.state = np
 }
 
+// setState updates just the transport state, so a play/pause shows on the
+// display straight away instead of on the next poll.
+func (s *store) setState(state string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.State = state
+}
+
 func (s *store) markStale() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -84,6 +92,21 @@ func main() {
 		json.NewEncoder(w).Encode(s.get())
 	})
 	mux.HandleFunc("/api/art", art.serveHTTP)
+	mux.HandleFunc("/api/toggle", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "POST only", http.StatusMethodNotAllowed)
+			return
+		}
+		state, err := togglePlayback(controlURL, serviceType)
+		if err != nil {
+			log.Printf("toggle: %v", err)
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		s.setState(state)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"state": state})
+	})
 
 	webRoot, err := fs.Sub(webFiles, "web")
 	if err != nil {
@@ -93,6 +116,25 @@ func main() {
 
 	log.Printf("nowplaying listening on %s, polling %s every %ds", addr, controlURL, pollSeconds)
 	log.Fatal(http.ListenAndServe(addr, mux))
+}
+
+// togglePlayback pauses the renderer if it's playing, otherwise resumes it,
+// deciding from the renderer's live state rather than the last poll.
+func togglePlayback(controlURL, serviceType string) (string, error) {
+	state, err := dlna.GetTransportState(controlURL, serviceType)
+	if err != nil {
+		return "", err
+	}
+	if state == "PLAYING" {
+		if err := dlna.Pause(controlURL, serviceType); err != nil {
+			return "", err
+		}
+		return "PAUSED_PLAYBACK", nil
+	}
+	if err := dlna.Play(controlURL, serviceType); err != nil {
+		return "", err
+	}
+	return "PLAYING", nil
 }
 
 func pollLoop(s *store, art *artCache, controlURL, serviceType string, interval time.Duration) {

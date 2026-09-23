@@ -149,3 +149,15 @@ func GetPositionInfo(controlURL, serviceType string) (Position, error) {
 	}
 	return pos, nil
 }
+
+// Play calls AVTransport's Play at normal speed (resumes a paused track).
+func Play(controlURL, serviceType string) error {
+	_, err := soapCall(controlURL, serviceType, "Play", "<InstanceID>0</InstanceID><Speed>1</Speed>")
+	return err
+}
+
+// Pause calls AVTransport's Pause.
+func Pause(controlURL, serviceType string) error {
+	_, err := soapCall(controlURL, serviceType, "Pause", "<InstanceID>0</InstanceID>")
+	return err
+}
