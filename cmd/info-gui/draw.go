@@ -134,29 +134,23 @@ func moonIcon(gtx layout.Context, illum float64, waxing bool, size int) layout.D
 	if !waxing {
 		side = -1
 	}
-	// Lit half disc on the lit side.
+	// The lit area as a single shape (two shapes meeting along a shared
+	// edge leave an antialiasing seam): down the lit limb, then back up the
+	// terminator. The terminator is a half ellipse with x-radius (1-2*illum)*r
+	// on the lit side — the limb itself at new moon, a straight line at a
+	// quarter, and the opposite limb at full.
 	const steps = 48
-	half := make([]f32.Point, 0, steps+1)
+	k := side * float32(1-2*illum)
+	lit := make([]f32.Point, 0, 2*(steps+1))
 	for i := 0; i <= steps; i++ {
 		a := -math.Pi/2 + math.Pi*float64(i)/steps
-		half = append(half, f32.Pt(cx+side*r*float32(math.Cos(a)), cy+r*float32(math.Sin(a))))
+		lit = append(lit, f32.Pt(cx+side*r*float32(math.Cos(a)), cy+r*float32(math.Sin(a))))
 	}
-	fillPolygon(ops, colMoon, half)
-
-	// The terminator is a half ellipse: it bulges into the dark half for a
-	// gibbous moon (adding light) and into the lit half for a crescent
-	// (taking it away).
-	k := float32(math.Abs(1 - 2*illum))
-	c, bulge := colMoon, -side
-	if illum < 0.5 {
-		c, bulge = colMoonDark, side
-	}
-	term := make([]f32.Point, 0, steps+1)
-	for i := 0; i <= steps; i++ {
+	for i := steps; i >= 0; i-- {
 		a := -math.Pi/2 + math.Pi*float64(i)/steps
-		term = append(term, f32.Pt(cx+bulge*k*r*float32(math.Cos(a)), cy+r*float32(math.Sin(a))))
+		lit = append(lit, f32.Pt(cx+k*r*float32(math.Cos(a)), cy+r*float32(math.Sin(a))))
 	}
-	fillPolygon(ops, c, term)
+	fillPolygon(ops, colMoon, lit)
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
