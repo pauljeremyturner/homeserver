@@ -7,8 +7,6 @@ services:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
     network_mode: host # required for Plex/DLNA discovery (GDM) to work on the LAN
-    security_opt:
-      - label:disable # /music lives on exFAT, which can't hold SELinux xattrs — :z/:Z relabeling is a no-op there, so skip SELinux label enforcement for this container instead
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -21,7 +19,7 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM}
     volumes:
       - ./config/plex:/config:Z
-      - /mnt/dockcase/home/paul/Music:/music # no :z — see security_opt above, SELinux labeling doesn't apply on exFAT anyway
+      - /home/paul/Music:/music:z # shared label so host-side copies (sftp/filebrowser) stay readable
     restart: unless-stopped
 
   pihole:
@@ -39,7 +37,7 @@ services:
     restart: unless-stopped
 
   filebrowser:
-    image: lscr.io/linuxserver/filebrowser:latest
+    image: filebrowser/filebrowser:latest
     container_name: filebrowser
     ports:
       - 8080:80
@@ -49,6 +47,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ./config/filebrowser:/config:Z
+      - ./config/filebrowser/database:/database:Z # the image declares /database as a VOLUME — bind it so the user DB survives `compose down`
       - /home/paul/content:/srv:Z # placeholder — tweak later
     restart: unless-stopped
 

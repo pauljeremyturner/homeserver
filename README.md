@@ -15,7 +15,7 @@ Single project for the home server: Docker Compose stacks for third-party servic
 
 - First run needs a one-time manual step: claim the server via its web UI (`http://<host>:32400/web`), either signing in or setting `PLEX_CLAIM` (a token from https://plex.tv/claim, valid ~4 minutes) beforehand.
 - When adding a library folder in the Plex UI, use the **container** path (`/music`), not whatever host path your OS shows the drive mounted at — they're not the same filesystem view, and Plex will silently scan 0 items if pointed at a path that doesn't exist inside its own container.
-- If the media lives on an **exFAT** drive: exFAT can't hold extended attributes, so SELinux can't label individual files on it, and `:z`/`:Z` bind-mount relabeling is a silent no-op there. Under SELinux enforcing, a container will get "Permission denied" reading it — even as root — regardless of that flag. Fix used here: `security_opt: [label:disable]` on the Plex service, which skips SELinux label enforcement for that one container, rather than trying to relabel a filesystem that structurally can't support it. Mount the drive itself normally (no special SELinux mount options needed).
+- (Historical, dev box only) If the media lives on an **exFAT** drive: exFAT can't hold extended attributes, so SELinux can't label individual files on it, and `:z`/`:Z` bind-mount relabeling is a silent no-op there. Under SELinux enforcing, a container will get "Permission denied" reading it — even as root — regardless of that flag. Fix used here: `security_opt: [label:disable]` on the Plex service, which skips SELinux label enforcement for that one container, rather than trying to relabel a filesystem that structurally can't support it. Mount the drive itself normally (no special SELinux mount options needed).
 
 ## Docker Compose
 
@@ -27,7 +27,7 @@ Copy `.env.example` to `.env` and adjust for the host before running:
 docker compose up -d
 ```
 
-`/home/paul:/media` and `/home/paul/content:/srv` are placeholders until real paths on the Mac Mini are decided.
+Music lives at `/home/paul/Music` on the Mac Mini's boot drive (XFS, so plain `:z` SELinux relabeling works). `/home/paul/content:/srv` (Filebrowser) is still a placeholder.
 
 ## Go monorepo
 
