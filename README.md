@@ -6,7 +6,7 @@ Single project for the home server: Docker Compose stacks for third-party servic
 
 1. Plex — media source, DLNA server enabled (Settings > Network > Enable DLNA Server). Replaces MiniDLNA, whose `lscr.io/linuxserver/minidlna` image was retired upstream (registry now returns "denied" — the repo no longer exists).
 2. Pi-hole — DNS/ad blocking
-3. SFTP (host-level, not containerized) + Filebrowser (dockerized) — file up/download
+3. SFTP (host-level, not containerized) + [filebrowserNEXT](https://filebrowsernext.github.io/filebrowserNEXT/) (dockerized, replaces the deprecated upstream Filebrowser) — file up/download
 4. Portainer CE (Community Edition, free) — web UI for managing the containers above
 5. `nowplaying` — custom Go service; DLNA now-playing display (see below)
 6. `info-server` — custom Go service; gRPC streaming source for the Tinker Board's weather/crypto/news dashboard (see below)
@@ -27,7 +27,7 @@ Copy `.env.example` to `.env` and adjust for the host before running:
 docker compose up -d
 ```
 
-Music lives at `/home/paul/Music` on the Mac Mini's boot drive (XFS, so plain `:z` SELinux relabeling works). `/home/paul/content:/srv` (Filebrowser) is still a placeholder.
+Music lives at `/home/paul/Music` on the Mac Mini's boot drive (XFS, so plain `:z` SELinux relabeling works). `/home/paul/content:/srv` (filebrowserNEXT) is still a placeholder.
 
 ## Go monorepo
 

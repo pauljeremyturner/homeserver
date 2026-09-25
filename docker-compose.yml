@@ -19,7 +19,7 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM}
     volumes:
       - ./config/plex:/config:Z
-      - /home/paul/Music:/music:z # shared label so host-side copies (sftp/filebrowser) stay readable
+      - /home/paul/Music:/music:z # shared label so host-side copies (sftp/filebrowserNEXT) stay readable
     restart: unless-stopped
 
   pihole:
@@ -36,18 +36,18 @@ services:
       - ./config/pihole/etc-dnsmasq.d:/etc/dnsmasq.d:Z
     restart: unless-stopped
 
-  filebrowser:
-    image: filebrowser/filebrowser:latest
-    container_name: filebrowser
+  # filebrowserNEXT (https://filebrowsernext.github.io/filebrowserNEXT/) —
+  # maintained fork replacing the deprecated upstream filebrowser. Runs as
+  # UID/GID 1000 (baked into the image; it ignores PUID/PGID). On first start
+  # it creates the admin user — check `docker logs filebrowsernext`.
+  filebrowsernext:
+    image: ghcr.io/filebrowsernext/filebrowsernext:latest
+    container_name: filebrowsernext
     ports:
       - 8080:80
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
     volumes:
-      - ./config/filebrowser:/config:Z
-      - ./config/filebrowser/database:/database:Z # the image declares /database as a VOLUME — bind it so the user DB survives `compose down`
+      - ./config/filebrowsernext/config:/config:Z # settings.json, auto-created if empty
+      - ./config/filebrowsernext/database:/database:Z # users/permissions (filebrowser.db)
       - /home/paul/content:/srv:Z # placeholder — tweak later
     restart: unless-stopped
 
