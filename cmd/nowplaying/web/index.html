@@ -88,6 +88,9 @@
   #meta {
     flex: 0 0 auto;
     -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none; /* long press reloads — don't select text or pop the callout */
+    user-select: none;
+    -webkit-touch-callout: none;
     box-sizing: border-box;
     padding: 20px 18px;
     text-align: center;
@@ -105,6 +108,10 @@
     margin-bottom: 4px;
     word-wrap: break-word;
   }
+  /* Compact (default): just the first line. Tapping the text cycles to
+     all three lines and back. */
+  #meta.compact #artist, #meta.compact #album { display: none; }
+  #meta.compact #title { margin-bottom: 0; }
   #album {
     font-size: 16px;
     color: #888;
@@ -152,7 +159,7 @@
       <svg id="status-pause" viewBox="0 0 24 24" style="display:none"><path d="M5.5 4.5h4.5v15H5.5zM14 4.5h4.5v15H14z"/></svg>
     </div>
   </div>
-  <div id="meta">
+  <div id="meta" class="compact">
     <div id="title">&nbsp;</div>
     <div id="artist">&nbsp;</div>
     <div id="album">&nbsp;</div>
@@ -186,12 +193,28 @@ function showStatus(state) {
   statusPause.style.display = state === 'PLAYING' ? 'none' : 'block';
 }
 
-// The kiosk app has no reload control, so tapping the text (or the loading
-// screen) reloads the page (picks up a new version of this page after
-// nowplaying is rebuilt).
+// The kiosk app has no reload control, so a long press on the text (or a
+// tap on the loading screen) reloads the page (picks up a new version of
+// this page after nowplaying is rebuilt).
+var metaEl = document.getElementById('meta');
+var LONG_PRESS_MS = 700;
+var pressTimer = null;
+var longPressed = false;
 function reload() { location.reload(); }
-document.getElementById('meta').addEventListener('click', reload);
 loadingEl.addEventListener('click', reload);
+metaEl.addEventListener('pointerdown', function () {
+  longPressed = false;
+  pressTimer = setTimeout(function () { longPressed = true; reload(); }, LONG_PRESS_MS);
+});
+function cancelPress() { clearTimeout(pressTimer); }
+metaEl.addEventListener('pointerup', cancelPress);
+metaEl.addEventListener('pointercancel', cancelPress);
+metaEl.addEventListener('pointerleave', cancelPress);
+metaEl.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+metaEl.addEventListener('click', function () {
+  if (longPressed) return;
+  metaEl.className = metaEl.className === 'compact' ? '' : 'compact';
+});
 
 function togglePlayback() {
   if (toggleBusy) return;
