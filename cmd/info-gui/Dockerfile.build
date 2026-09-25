@@ -1,0 +1,13 @@
+# Build environment for info-gui (Gio needs cgo against Wayland/EGL).
+# Debian Trixie to match the Tinker Board's Armbian, with both native amd64
+# libs (local runs + headless screenshots via Mesa's software renderer) and
+# armhf cross libs (the board is 32-bit armv7l). See build.sh.
+FROM golang:1.26-trixie
+RUN dpkg --add-architecture armhf \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
+      pkg-config gcc-arm-linux-gnueabihf libc6-dev-armhf-cross \
+      libwayland-dev libxkbcommon-dev libegl-dev libgles-dev \
+      libwayland-dev:armhf libxkbcommon-dev:armhf libegl-dev:armhf libgles-dev:armhf \
+      libegl-mesa0 libgl1-mesa-dri libgles2 \
+ && rm -rf /var/lib/apt/lists/*

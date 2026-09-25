@@ -8,3 +8,4 @@
 /config/**
 !/config/**/
 !/config/**/.gitkeep
+/cmd/info-gui/bin/
