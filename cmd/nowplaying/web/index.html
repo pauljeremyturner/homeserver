@@ -24,9 +24,27 @@
   #layout {
     width: 100%;
     height: 100%;
-    display: flex;
+    display: none;
     flex-direction: column;
   }
+  #layout.ready { display: flex; }
+  #layout.no-art #art-wrap { display: none; }
+  #layout.no-art #meta { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+  /* Shown instead of the layout whenever there's nothing real to display:
+     "Nothing playing" when stopped, "Loading..." at startup or while
+     track info is missing. */
+  #loading {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #loading.hidden { display: none; }
   #art-wrap {
     flex: 1 1 auto;
     min-height: 0;
@@ -42,12 +60,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    display: none;
-  }
-  #art.loaded { display: block; }
-  #art-placeholder {
-    color: #444;
-    font-size: 18px;
+    display: block;
   }
   /* Play/pause status over the art. White fill with a black outline so it
      reads on any album art colour. */
@@ -130,10 +143,10 @@
 </style>
 </head>
 <body>
+<div id="loading">Loading...</div>
 <div id="layout">
   <div id="art-wrap">
     <img id="art" alt="">
-    <div id="art-placeholder">No signal</div>
     <div id="art-status">
       <svg id="status-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>
       <svg id="status-pause" viewBox="0 0 24 24" style="display:none"><path d="M5.5 4.5h4.5v15H5.5zM14 4.5h4.5v15H14z"/></svg>
@@ -149,7 +162,8 @@
 
 <script>
 var artEl = document.getElementById('art');
-var artPlaceholder = document.getElementById('art-placeholder');
+var layoutEl = document.getElementById('layout');
+var loadingEl = document.getElementById('loading');
 var titleEl = document.getElementById('title');
 var artistEl = document.getElementById('artist');
 var albumEl = document.getElementById('album');
@@ -158,6 +172,11 @@ var artStatusEl = document.getElementById('art-status');
 var statusPlay = document.getElementById('status-play');
 var statusPause = document.getElementById('status-pause');
 var lastArtURL = '';
+var showing = false;
+var idleSince = 0;
+// Between tracks the renderer briefly reports TRANSITIONING or no track
+// info, so hold the last track this long before giving up on it.
+var IDLE_HOLD_MS = 6000;
 var toggleBusy = false;
 
 function showStatus(state) {
@@ -167,11 +186,12 @@ function showStatus(state) {
   statusPause.style.display = state === 'PLAYING' ? 'none' : 'block';
 }
 
-// The kiosk app has no reload control, so tapping the text reloads the page
-// (picks up a new version of this page after nowplaying is rebuilt).
-document.getElementById('meta').addEventListener('click', function () {
-  location.reload();
-});
+// The kiosk app has no reload control, so tapping the text (or the loading
+// screen) reloads the page (picks up a new version of this page after
+// nowplaying is rebuilt).
+function reload() { location.reload(); }
+document.getElementById('meta').addEventListener('click', reload);
+loadingEl.addEventListener('click', reload);
 
 function togglePlayback() {
   if (toggleBusy) return;
@@ -194,57 +214,63 @@ document.getElementById('art-wrap').addEventListener('click', function () {
 });
 
 function setText(el, text) {
-  el.textContent = text && text.length ? text : ' ';
+  el.textContent = text && text.length ? text : ' ';
+}
+
+function showIdle(text) {
+  showing = false;
+  loadingEl.textContent = text;
+  layoutEl.className = '';
+  loadingEl.className = '';
+  showStatus('');
+}
+
+// Connection trouble: keep the last track on screen with a warning rather
+// than blanking it — the renderer's SOAP server drops the odd poll.
+function showStale() {
+  if (!showing) return;
+  stateEl.textContent = 'connection lost';
+  stateEl.className = 'stale';
+  showStatus('');
 }
 
 function applyState(d) {
   if (d.stale) {
-    stateEl.textContent = 'connection lost';
-    stateEl.className = 'stale';
-    showStatus('');
+    showStale();
     return;
   }
-  if (!toggleBusy) showStatus(d.state);
-  var playing = d.state === 'PLAYING' || d.state === 'PAUSED_PLAYBACK';
-  if (!playing) {
-    setText(titleEl, '');
-    setText(artistEl, '');
-    setText(albumEl, '');
-    stateEl.textContent = 'nothing playing';
-    stateEl.className = '';
-    if (lastArtURL !== '') {
-      artEl.className = '';
-      artPlaceholder.style.display = 'flex';
-      lastArtURL = '';
+  var active = d.state === 'PLAYING' || d.state === 'PAUSED_PLAYBACK';
+  if (!active || !d.title) {
+    if (showing) {
+      if (!idleSince) idleSince = Date.now();
+      if (Date.now() - idleSince < IDLE_HOLD_MS) return;
     }
+    var stopped = d.state === 'STOPPED' || d.state === 'NO_MEDIA_PRESENT';
+    showIdle(stopped ? 'Nothing playing' : 'Loading...');
     return;
   }
+  idleSince = 0;
+  if (!toggleBusy) showStatus(d.state);
   setText(titleEl, d.title);
   setText(artistEl, d.artist);
   setText(albumEl, d.album);
   stateEl.textContent = '';
   stateEl.className = '';
 
-  if (d.album_art_url && d.album_art_url !== lastArtURL) {
-    artEl.src = d.album_art_url;
-    artEl.className = 'loaded';
-    artPlaceholder.style.display = 'none';
-    lastArtURL = d.album_art_url;
-  } else if (!d.album_art_url && lastArtURL !== '') {
-    artEl.className = '';
-    artPlaceholder.style.display = 'flex';
-    lastArtURL = '';
+  if (d.album_art_url !== lastArtURL) {
+    if (d.album_art_url) artEl.src = d.album_art_url;
+    lastArtURL = d.album_art_url || '';
   }
+  showing = true;
+  layoutEl.className = 'ready' + (lastArtURL ? '' : ' no-art');
+  loadingEl.className = 'hidden';
 }
 
 function poll() {
   fetch('/api/now-playing')
     .then(function (r) { return r.json(); })
     .then(applyState)
-    .catch(function () {
-      stateEl.textContent = 'connection lost';
-      stateEl.className = 'stale';
-    })
+    .catch(showStale)
     .finally(function () {
       setTimeout(poll, 3000);
     });
