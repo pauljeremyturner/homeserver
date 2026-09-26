@@ -27,6 +27,17 @@ Copy `.env.example` to `.env` and adjust for the host before running:
 docker compose up -d
 ```
 
+### Deploying
+
+Releases are git tags. To deploy one on the server:
+
+```
+./deploy.sh          # newest tag
+./deploy.sh 1.0.0    # a specific tag or commit
+```
+
+It fetches, checks out the tag (detached), and runs `docker compose up -d --build --remove-orphans`, which only recreates services whose image or config changed. `.env` and the runtime state under `config/` are untracked, so `git checkout` never touches them and they carry over as-is. The script refuses to run if `.env` is missing or a tracked file has local edits.
+
 Music lives at `/home/paul/Music` on the Mac Mini's boot drive (XFS, so plain `:z` SELinux relabeling works). `/home/paul/content:/srv` (filebrowserNEXT) is still a placeholder.
 
 ## Go monorepo
