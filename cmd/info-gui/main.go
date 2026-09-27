@@ -12,6 +12,9 @@ import (
 	"log"
 	"os"
 	"time"
+	// Embed the time zone database: the clock follows the weather location's
+	// zone, and the board can then run with any (or no) zoneinfo.
+	_ "time/tzdata"
 
 	"gioui.org/app"
 	"gioui.org/gpu/headless"

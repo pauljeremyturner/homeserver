@@ -73,4 +73,8 @@ message WeatherUpdate {
   // tomorrow_sunrise lets clients show the next sunrise once today's sun has
   // set.
   string tomorrow_sunrise = 23;
+  // timezone is the IANA name ("Europe/London") for the weather location,
+  // so clients can show its local time whatever their own clock is set to.
+  // Empty if it couldn't be looked up.
+  string timezone = 24;
 }

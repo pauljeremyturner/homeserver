@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -59,6 +60,10 @@ const (
 type ui struct {
 	th    *material.Theme
 	start time.Time
+	// loc is the weather location's time zone (from info-server), cached by
+	// name; nil until known, when the board's own zone is used.
+	locName string
+	loc     *time.Location
 }
 
 func newUI() *ui {
@@ -78,6 +83,9 @@ func (u *ui) label(size float32, c color.NRGBA, weight font.Weight, s string) ma
 }
 
 func (u *ui) layout(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
+	if loc := u.location(s.weather); loc != nil {
+		now = now.In(loc)
+	}
 	paint.Fill(gtx.Ops, colBg)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.header(gtx, now, s) }),
@@ -87,6 +95,24 @@ func (u *ui) layout(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.crypto(gtx, s) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.ticker(gtx, now, s) }),
 	)
+}
+
+// location returns the time zone of the weather location, or nil if it's
+// unknown, so the clock and sun follow the place the weather is for rather
+// than however the board's clock is set.
+func (u *ui) location(w *weatherpb.WeatherUpdate) *time.Location {
+	if w == nil || w.Timezone == "" {
+		return u.loc
+	}
+	if w.Timezone != u.locName {
+		loc, err := time.LoadLocation(w.Timezone)
+		if err != nil {
+			log.Printf("time zone %q: %v", w.Timezone, err)
+			loc = nil
+		}
+		u.locName, u.loc = w.Timezone, loc
+	}
+	return u.loc
 }
 
 func (u *ui) rule(gtx layout.Context) layout.Dimensions {

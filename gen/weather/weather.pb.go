@@ -223,8 +223,12 @@ type WeatherUpdate struct {
 	// tomorrow_sunrise lets clients show the next sunrise once today's sun has
 	// set.
 	TomorrowSunrise string `protobuf:"bytes,23,opt,name=tomorrow_sunrise,json=tomorrowSunrise,proto3" json:"tomorrow_sunrise,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// timezone is the IANA name ("Europe/London") for the weather location,
+	// so clients can show its local time whatever their own clock is set to.
+	// Empty if it couldn't be looked up.
+	Timezone      string `protobuf:"bytes,24,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *WeatherUpdate) Reset() {
@@ -418,12 +422,19 @@ func (x *WeatherUpdate) GetTomorrowSunrise() string {
 	return ""
 }
 
+func (x *WeatherUpdate) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
 var File_weather_weather_proto protoreflect.FileDescriptor
 
 const file_weather_weather_proto_rawDesc = "" +
 	"\n" +
 	"\x15weather/weather.proto\x12\aweather\"\x16\n" +
-	"\x14StreamWeatherRequest\"\x81\a\n" +
+	"\x14StreamWeatherRequest\"\x9d\a\n" +
 	"\rWeatherUpdate\x12&\n" +
 	"\x0ffetched_at_unix\x18\x01 \x01(\x03R\rfetchedAtUnix\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12!\n" +
@@ -451,7 +462,8 @@ const file_weather_weather_proto_rawDesc = "" +
 	"\x12tomorrow_wind_kmph\x18\x14 \x01(\tR\x10tomorrowWindKmph\x125\n" +
 	"\x17tomorrow_chance_of_rain\x18\x15 \x01(\tR\x14tomorrowChanceOfRain\x12#\n" +
 	"\rwind_beaufort\x18\x16 \x01(\tR\fwindBeaufort\x12)\n" +
-	"\x10tomorrow_sunrise\x18\x17 \x01(\tR\x0ftomorrowSunrise*\xc7\x01\n" +
+	"\x10tomorrow_sunrise\x18\x17 \x01(\tR\x0ftomorrowSunrise\x12\x1a\n" +
+	"\btimezone\x18\x18 \x01(\tR\btimezone*\xc7\x01\n" +
 	"\bCategory\x12\x14\n" +
 	"\x10CATEGORY_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eCATEGORY_SUNNY\x10\x01\x12\x1a\n" +

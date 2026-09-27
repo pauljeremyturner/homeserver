@@ -29,9 +29,11 @@ type currentCondition struct {
 }
 
 type nearestArea struct {
-	AreaName []valueField `json:"areaName"`
-	Country  []valueField `json:"country"`
-	Region   []valueField `json:"region"`
+	AreaName  []valueField `json:"areaName"`
+	Country   []valueField `json:"country"`
+	Region    []valueField `json:"region"`
+	Latitude  string       `json:"latitude"`
+	Longitude string       `json:"longitude"`
 }
 
 type astronomy struct {
@@ -212,6 +214,7 @@ func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 		if country != "" {
 			update.Location += ", " + country
 		}
+		update.Timezone = timezoneAt(na.Latitude, na.Longitude)
 	}
 
 	today := w.Weather[0]

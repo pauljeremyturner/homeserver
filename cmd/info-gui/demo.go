@@ -16,6 +16,7 @@ func fillDemo(s *state) {
 		s.weather = &weatherpb.WeatherUpdate{
 			FetchedAtUnix:        now,
 			Location:             "Glasgow, United Kingdom",
+			Timezone:             "Europe/London",
 			CurrentDesc:          "Light rain shower",
 			CurrentCategory:      weatherpb.Category_CATEGORY_RAIN,
 			TempC:                "12",
