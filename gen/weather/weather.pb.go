@@ -217,8 +217,14 @@ type WeatherUpdate struct {
 	TomorrowMinC         string                 `protobuf:"bytes,19,opt,name=tomorrow_min_c,json=tomorrowMinC,proto3" json:"tomorrow_min_c,omitempty"`
 	TomorrowWindKmph     string                 `protobuf:"bytes,20,opt,name=tomorrow_wind_kmph,json=tomorrowWindKmph,proto3" json:"tomorrow_wind_kmph,omitempty"`
 	TomorrowChanceOfRain string                 `protobuf:"bytes,21,opt,name=tomorrow_chance_of_rain,json=tomorrowChanceOfRain,proto3" json:"tomorrow_chance_of_rain,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// wind_beaufort is the Beaufort scale name for wind_kmph ("Light breeze"),
+	// empty if the speed couldn't be parsed.
+	WindBeaufort string `protobuf:"bytes,22,opt,name=wind_beaufort,json=windBeaufort,proto3" json:"wind_beaufort,omitempty"`
+	// tomorrow_sunrise lets clients show the next sunrise once today's sun has
+	// set.
+	TomorrowSunrise string `protobuf:"bytes,23,opt,name=tomorrow_sunrise,json=tomorrowSunrise,proto3" json:"tomorrow_sunrise,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *WeatherUpdate) Reset() {
@@ -398,12 +404,26 @@ func (x *WeatherUpdate) GetTomorrowChanceOfRain() string {
 	return ""
 }
 
+func (x *WeatherUpdate) GetWindBeaufort() string {
+	if x != nil {
+		return x.WindBeaufort
+	}
+	return ""
+}
+
+func (x *WeatherUpdate) GetTomorrowSunrise() string {
+	if x != nil {
+		return x.TomorrowSunrise
+	}
+	return ""
+}
+
 var File_weather_weather_proto protoreflect.FileDescriptor
 
 const file_weather_weather_proto_rawDesc = "" +
 	"\n" +
 	"\x15weather/weather.proto\x12\aweather\"\x16\n" +
-	"\x14StreamWeatherRequest\"\xb1\x06\n" +
+	"\x14StreamWeatherRequest\"\x81\a\n" +
 	"\rWeatherUpdate\x12&\n" +
 	"\x0ffetched_at_unix\x18\x01 \x01(\x03R\rfetchedAtUnix\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12!\n" +
@@ -429,7 +449,9 @@ const file_weather_weather_proto_rawDesc = "" +
 	"\x0etomorrow_max_c\x18\x12 \x01(\tR\ftomorrowMaxC\x12$\n" +
 	"\x0etomorrow_min_c\x18\x13 \x01(\tR\ftomorrowMinC\x12,\n" +
 	"\x12tomorrow_wind_kmph\x18\x14 \x01(\tR\x10tomorrowWindKmph\x125\n" +
-	"\x17tomorrow_chance_of_rain\x18\x15 \x01(\tR\x14tomorrowChanceOfRain*\xc7\x01\n" +
+	"\x17tomorrow_chance_of_rain\x18\x15 \x01(\tR\x14tomorrowChanceOfRain\x12#\n" +
+	"\rwind_beaufort\x18\x16 \x01(\tR\fwindBeaufort\x12)\n" +
+	"\x10tomorrow_sunrise\x18\x17 \x01(\tR\x0ftomorrowSunrise*\xc7\x01\n" +
 	"\bCategory\x12\x14\n" +
 	"\x10CATEGORY_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eCATEGORY_SUNNY\x10\x01\x12\x1a\n" +

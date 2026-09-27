@@ -125,6 +125,41 @@ func moonPhaseEnum(phase string) weatherpb.MoonPhase {
 	}
 }
 
+// beaufortScale holds the upper bound (exclusive, km/h) of each Beaufort
+// force below hurricane, with its name.
+var beaufortScale = []struct {
+	below float64
+	name  string
+}{
+	{1, "Calm"},
+	{6, "Light air"},
+	{12, "Light breeze"},
+	{20, "Gentle breeze"},
+	{29, "Moderate breeze"},
+	{39, "Fresh breeze"},
+	{50, "Strong breeze"},
+	{62, "Near gale"},
+	{75, "Gale"},
+	{89, "Strong gale"},
+	{103, "Storm"},
+	{118, "Violent storm"},
+}
+
+// beaufortName names a wind speed on the Beaufort scale, or returns "" if
+// kmph isn't a number.
+func beaufortName(kmph string) string {
+	v, err := strconv.ParseFloat(kmph, 64)
+	if err != nil || v < 0 {
+		return ""
+	}
+	for _, b := range beaufortScale {
+		if v < b.below {
+			return b.name
+		}
+	}
+	return "Hurricane"
+}
+
 func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 	client := http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Get("https://wttr.in/?format=j1")
@@ -156,6 +191,7 @@ func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 		Humidity:        cur.Humidity,
 		WindKmph:        cur.WindspeedKmph,
 		WindDir:         cur.Winddir16Point,
+		WindBeaufort:    beaufortName(cur.WindspeedKmph),
 		UvIndex:         cur.UvIndex,
 		VisibilityKm:    cur.Visibility,
 	}
@@ -191,6 +227,9 @@ func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 		tomorrow := w.Weather[1]
 		update.TomorrowMaxC = tomorrow.MaxtempC
 		update.TomorrowMinC = tomorrow.MintempC
+		if len(tomorrow.Astronomy) > 0 {
+			update.TomorrowSunrise = tomorrow.Astronomy[0].Sunrise
+		}
 		// use the midday (1200) hourly slot as the representative condition
 		found := false
 		for _, h := range tomorrow.Hourly {

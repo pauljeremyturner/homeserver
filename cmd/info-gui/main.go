@@ -25,6 +25,7 @@ func main() {
 	demo := flag.Bool("demo", false, "use built-in sample data instead of info-server")
 	shot := flag.String("screenshot", "", "render one 800x480 frame to this PNG and exit")
 	kiosk := flag.Bool("kiosk", false, "full screen with no window decorations (for cage)")
+	at := flag.String("time", "", "with -screenshot: render as if the clock read this HH:MM today")
 	wait := flag.Duration("wait", 4*time.Second, "with -screenshot and live data: how long to wait for the streams first")
 	flag.Parse()
 
@@ -48,7 +49,15 @@ func main() {
 		if !*demo {
 			time.Sleep(*wait)
 		}
-		if err := screenshot(*shot, s); err != nil {
+		now := time.Now()
+		if *at != "" {
+			t, err := time.Parse("15:04", *at)
+			if err != nil {
+				log.Fatalf("-time: %v", err)
+			}
+			now = time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
+		}
+		if err := screenshot(*shot, s, now); err != nil {
 			log.Fatalf("screenshot: %v", err)
 		}
 		return
@@ -101,7 +110,7 @@ func fitMetric(size image.Point) unit.Metric {
 	return unit.Metric{PxPerDp: scale, PxPerSp: scale}
 }
 
-func screenshot(path string, s *state) error {
+func screenshot(path string, s *state, now time.Time) error {
 	const width, height = designWidth, designHeight
 	win, err := headless.NewWindow(width, height)
 	if err != nil {
@@ -113,7 +122,7 @@ func screenshot(path string, s *state) error {
 		Ops:         &ops,
 		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
 		Constraints: layout.Exact(image.Pt(width, height)),
-		Now:         time.Now(),
+		Now:         now,
 	}
 	newUI().layout(gtx, gtx.Now, s.snapshot())
 	if err := win.Frame(&ops); err != nil {

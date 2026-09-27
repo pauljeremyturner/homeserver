@@ -66,4 +66,11 @@ message WeatherUpdate {
   string tomorrow_min_c = 19;
   string tomorrow_wind_kmph = 20;
   string tomorrow_chance_of_rain = 21;
+
+  // wind_beaufort is the Beaufort scale name for wind_kmph ("Light breeze"),
+  // empty if the speed couldn't be parsed.
+  string wind_beaufort = 22;
+  // tomorrow_sunrise lets clients show the next sunrise once today's sun has
+  // set.
+  string tomorrow_sunrise = 23;
 }

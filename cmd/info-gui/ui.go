@@ -82,7 +82,7 @@ func (u *ui) layout(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.header(gtx, now, s) }),
 		layout.Rigid(u.rule),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.weather(gtx, s.weather) }),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.weather(gtx, now, s.weather) }),
 		layout.Rigid(u.rule),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.crypto(gtx, s) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.ticker(gtx, now, s) }),
@@ -133,7 +133,7 @@ func (u *ui) header(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 
 // --- weather / moon --------------------------------------------------------
 
-func (u *ui) weather(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensions {
+func (u *ui) weather(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) layout.Dimensions {
 	if w == nil {
 		return layout.Center.Layout(gtx, u.label(18, colFaint, font.Normal, "Waiting for weather...").Layout)
 	}
@@ -143,9 +143,18 @@ func (u *ui) weather(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dime
 		return layout.W.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min = image.Point{}
 			return layout.Flex{}.Layout(gtx,
-				layout.Flexed(0.42, func(gtx layout.Context) layout.Dimensions { return u.today(gtx, w) }),
-				layout.Flexed(0.31, func(gtx layout.Context) layout.Dimensions { return u.tomorrow(gtx, w) }),
-				layout.Flexed(0.27, func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, w) }),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.today(gtx, w) }),
+				layout.Flexed(0.85, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.tomorrow(gtx, w) }),
+						layout.Rigid(layout.Spacer{Height: 18}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, w) }),
+					)
+				}),
+				layout.Rigid(layout.Spacer{Width: 16}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.sun(gtx, now, w) }),
+				layout.Rigid(layout.Spacer{Width: 8}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wind(gtx, w) }),
 			)
 		})
 	})
@@ -178,8 +187,8 @@ func (u *ui) today(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimens
 		func(gtx layout.Context) layout.Dimensions { return weatherIcon(gtx, w.CurrentCategory, gtx.Dp(96)) },
 		u.label(48, colText, font.Medium, w.TempC+"°").Layout,
 		u.label(16, colText, font.Normal, w.CurrentDesc).Layout,
-		u.label(14, colDim, font.Normal, "feels "+w.FeelsLikeC+"°  ·  "+w.Humidity+"% humidity").Layout,
-		u.label(14, colDim, font.Normal, "wind "+w.WindKmph+" km/h "+w.WindDir).Layout,
+		u.label(14, colDim, font.Normal, "feels "+w.FeelsLikeC+"°").Layout,
+		u.label(14, colDim, font.Normal, w.Humidity+"% humidity").Layout,
 	)
 }
 
@@ -214,9 +223,121 @@ func (u *ui) moon(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensi
 		func(gtx layout.Context) layout.Dimensions { return moonIcon(gtx, illum, waxing, gtx.Dp(52)) },
 		u.label(15, colText, font.Normal, moonPhaseLabel(w.MoonPhase)).Layout,
 		u.label(14, colDim, font.Normal, strings.TrimSpace(w.MoonIllum)+"% lit").Layout,
-		layout.Spacer{Height: 6}.Layout,
-		u.label(14, colDim, font.Normal, "↑ "+clockTime(w.TodaySunrise)+"   ↓ "+clockTime(w.TodaySunset)).Layout,
 	)
+}
+
+// centred lays out a label centred in a box w wide.
+func (u *ui) centred(gtx layout.Context, w int, l material.LabelStyle) layout.Dimensions {
+	gtx.Constraints = layout.Exact(image.Pt(w, gtx.Constraints.Max.Y))
+	gtx.Constraints.Min.Y = 0
+	l.Alignment = text.Middle
+	return l.Layout(gtx)
+}
+
+// labelAt draws a label centred on (x, y), without affecting layout.
+func (u *ui) labelAt(gtx layout.Context, x, y int, l material.LabelStyle) {
+	macro := op.Record(gtx.Ops)
+	gtx.Constraints.Min = image.Point{}
+	dims := l.Layout(gtx)
+	call := macro.Stop()
+	defer op.Offset(image.Pt(x-dims.Size.X/2, y-dims.Size.Y/2)).Push(gtx.Ops).Pop()
+	call.Add(gtx.Ops)
+}
+
+// sun shows today's daylight as the sun's path over a semicircle, with the
+// next sunrise or sunset underneath.
+func (u *ui) sun(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) layout.Dimensions {
+	width := gtx.Dp(128)
+	rise, riseOK := clockOn(now, w.TodaySunrise)
+	set, setOK := clockOn(now, w.TodaySunset)
+	frac := -1.0
+	next := ""
+	switch {
+	case !riseOK || !setOK || !set.After(rise):
+	case now.Before(rise):
+		next = "sunrise " + rise.Format("15:04")
+	case now.Before(set):
+		frac = now.Sub(rise).Seconds() / set.Sub(rise).Seconds()
+		next = "sunset " + set.Format("15:04")
+	default:
+		next = "sunset " + set.Format("15:04")
+		if w.TomorrowSunrise != "" {
+			next = "sunrise " + clockTime(w.TomorrowSunrise)
+		}
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return u.centred(gtx, width, u.label(13, colDim, font.Medium, "SUN"))
+		}),
+		layout.Rigid(layout.Spacer{Height: 14}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return sunArc(gtx, frac, width, width/2+gtx.Dp(2))
+		}),
+		layout.Rigid(layout.Spacer{Height: 3}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
+			return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
+				layout.Rigid(u.label(13, colDim, font.Normal, clockTime(w.TodaySunrise)).Layout),
+				layout.Rigid(u.label(13, colDim, font.Normal, clockTime(w.TodaySunset)).Layout),
+			)
+		}),
+		layout.Rigid(layout.Spacer{Height: 4}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return u.centred(gtx, width, u.label(16, colText, font.Normal, next))
+		}),
+	)
+}
+
+// wind shows the wind direction on a compass, with its Beaufort name above
+// and the direction and speed below.
+func (u *ui) wind(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensions {
+	// The column is wider than the compass so the longer Beaufort names
+	// ("MODERATE BREEZE") fit above it.
+	width, size, margin := gtx.Dp(132), gtx.Dp(104), gtx.Dp(14)
+	heading := "WIND"
+	if w.WindBeaufort != "" {
+		heading = strings.ToUpper(w.WindBeaufort)
+	}
+	bearing, ok := compassBearing(w.WindDir)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return u.centred(gtx, width, u.label(13, colDim, font.Medium, heading))
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			defer op.Offset(image.Pt((width-size)/2, 0)).Push(gtx.Ops).Pop()
+			compass(gtx, bearing, ok, size, margin)
+			c, off := size/2, size/2-margin/2
+			for i, l := range []string{"N", "E", "S", "W"} {
+				dx, dy := [4]int{0, 1, 0, -1}[i], [4]int{-1, 0, 1, 0}[i]
+				u.labelAt(gtx, c+dx*off, c+dy*off, u.label(11, colDim, font.Medium, l))
+			}
+			return layout.Dimensions{Size: image.Pt(width, size)}
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return u.centred(gtx, width, u.label(16, colText, font.Normal, strings.TrimSpace(w.WindDir+" "+w.WindKmph+" km/h")))
+		}),
+	)
+}
+
+// compassBearing turns a 16-point compass direction ("SSW") into degrees
+// clockwise from north.
+func compassBearing(dir string) (float64, bool) {
+	points := []string{"N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"}
+	for i, p := range points {
+		if p == strings.TrimSpace(dir) {
+			return float64(i) * 22.5, true
+		}
+	}
+	return 0, false
+}
+
+// clockOn is wttr.in's "07:12 AM" style time on now's date.
+func clockOn(now time.Time, s string) (time.Time, bool) {
+	t, err := time.Parse("03:04 PM", strings.TrimSpace(s))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location()), true
 }
 
 // clockTime turns wttr.in's "07:12 AM" style into 24h "07:12".

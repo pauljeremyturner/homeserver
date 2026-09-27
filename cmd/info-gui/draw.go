@@ -181,3 +181,78 @@ func sparkline(gtx layout.Context, prices []float64, lo, hi float64, c color.NRG
 	fillCircle(gtx.Ops, c, pts[len(pts)-1].X, pts[len(pts)-1].Y, stroke*1.6)
 	return dims
 }
+
+// polyArc returns points along a circular arc centred on (cx, cy), from
+// angle a0 to a1 (radians, y down).
+func polyArc(cx, cy, r float32, a0, a1 float64) []f32.Point {
+	const steps = 48
+	pts := make([]f32.Point, steps+1)
+	for i := range pts {
+		a := a0 + (a1-a0)*float64(i)/steps
+		pts[i] = f32.Pt(cx+r*float32(math.Cos(a)), cy+r*float32(math.Sin(a)))
+	}
+	return pts
+}
+
+// sunArc draws the sun's course over the day as a semicircle standing on its
+// diameter (the horizon), in a w x h box. frac is how far through the day it
+// is (0 sunrise .. 1 sunset); outside that range the sun is below the
+// horizon and isn't drawn.
+func sunArc(gtx layout.Context, frac float64, w, h int) layout.Dimensions {
+	ops := gtx.Ops
+	stroke := float32(gtx.Dp(2))
+	sunR := float32(gtx.Dp(7))
+	r := float32(w)/2 - stroke
+	cx, cy := float32(w)/2, float32(h)-stroke/2
+	strokeLine(ops, colFaint, stroke, polyArc(cx, cy, r, math.Pi, 2*math.Pi)...)
+	strokeLine(ops, colDim, stroke, f32.Pt(0, cy), f32.Pt(float32(w), cy))
+	if frac < 0 || frac > 1 {
+		return layout.Dimensions{Size: image.Pt(w, h)}
+	}
+	a := math.Pi * (1 + frac)
+	if frac > 0 {
+		done := colSun
+		done.A = 110
+		strokeLine(ops, done, stroke, polyArc(cx, cy, r, math.Pi, a)...)
+	}
+	drawSun(ops, cx+r*float32(math.Cos(a)), cy+r*float32(math.Sin(a)), sunR)
+	return layout.Dimensions{Size: image.Pt(w, h)}
+}
+
+// compass draws a compass ring with a pointer along bearing (degrees
+// clockwise from north), leaving margin around the ring for the cardinal
+// letters. ok=false draws the ring without a pointer.
+func compass(gtx layout.Context, bearing float64, ok bool, size, margin int) layout.Dimensions {
+	ops := gtx.Ops
+	stroke := float32(gtx.Dp(2))
+	c := float32(size) / 2
+	r := c - float32(margin)
+	// dir is the unit vector for a bearing, in screen coordinates.
+	dir := func(deg float64) (float32, float32) {
+		rad := deg * math.Pi / 180
+		return float32(math.Sin(rad)), -float32(math.Cos(rad))
+	}
+	strokeLine(ops, colFaint, stroke, polyArc(c, c, r, 0, 2*math.Pi)...)
+	for i := 0; i < 16; i++ {
+		dx, dy := dir(float64(i) * 22.5)
+		inner := r - float32(gtx.Dp(3))
+		col := colFaint
+		if i%4 == 0 {
+			inner, col = r-float32(gtx.Dp(7)), colDim
+		}
+		strokeLine(ops, col, stroke*0.75, f32.Pt(c+dx*inner, c+dy*inner), f32.Pt(c+dx*r, c+dy*r))
+	}
+	if ok {
+		// An isosceles triangle whose axis lies along the bearing's radius:
+		// apex just inside the ring, base straddling the centre's far side.
+		dx, dy := dir(bearing)
+		px, py := -dy, dx // perpendicular
+		apex, back, half := r*0.8, r*0.5, r*0.22
+		fillPolygon(ops, colText, []f32.Point{
+			f32.Pt(c+dx*apex, c+dy*apex),
+			f32.Pt(c-dx*back+px*half, c-dy*back+py*half),
+			f32.Pt(c-dx*back-px*half, c-dy*back-py*half),
+		})
+	}
+	return layout.Dimensions{Size: image.Pt(size, size)}
+}
