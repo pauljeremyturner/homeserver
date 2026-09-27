@@ -347,20 +347,16 @@ func (u *ui) sun(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) 
 	)
 }
 
-// wind shows the wind direction on a compass, with its Beaufort name above
-// and the direction and speed below.
+// wind shows the wind direction on a compass, with the direction, speed and
+// Beaufort name below.
 func (u *ui) wind(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensions {
 	// The column is wider than the compass so the longer Beaufort names
-	// ("MODERATE BREEZE") fit above it.
+	// ("Moderate breeze") fit under it.
 	width, size, margin := gtx.Dp(132), gtx.Dp(104), gtx.Dp(14)
-	heading := "WIND"
-	if w.WindBeaufort != "" {
-		heading = strings.ToUpper(w.WindBeaufort)
-	}
 	bearing, ok := compassBearing(w.WindDir)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return u.centred(gtx, width, u.label(13, colDim, font.Medium, heading))
+			return u.centred(gtx, width, u.label(13, colDim, font.Medium, "WIND"))
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			defer op.Offset(image.Pt((width-size)/2, 0)).Push(gtx.Ops).Pop()
@@ -374,6 +370,9 @@ func (u *ui) wind(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensi
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return u.centred(gtx, width, u.label(16, colText, font.Normal, strings.TrimSpace(w.WindDir+" "+w.WindKmph+" km/h")))
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return u.centred(gtx, width, u.label(14, colDim, font.Normal, w.WindBeaufort))
 		}),
 	)
 }

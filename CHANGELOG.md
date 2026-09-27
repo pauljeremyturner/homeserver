@@ -3,6 +3,13 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.3.1 - 2026-09-27
+
+### Changed
+- info-gui: the wind panel's heading is now WIND, with the Beaufort name
+  moved under the direction and speed, so longer names ("Moderate breeze")
+  are no longer cut off.
+
 ## 1.3.0 - 2026-09-27
 
 ### Added
