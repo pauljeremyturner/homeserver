@@ -7,6 +7,7 @@
 #   usermod -aG video weather          # seatd's socket is group video
 #   systemctl disable getty@tty1       # tty1 belongs to cage now
 #   systemctl enable --now info-gui
+#   cp -r cursors/blank /usr/local/share/icons/   # hides cage's pointer
 #
 # Fall back to the console TUI dashboard (getty autologin on tty1):
 #   systemctl disable --now info-gui && systemctl enable --now getty@tty1
@@ -30,6 +31,9 @@ StandardError=journal
 UtmpIdentifier=tty1
 UtmpMode=user
 Environment=LIBSEAT_BACKEND=seatd
+# cage always draws a pointer, even with no mouse attached; this theme's
+# cursor is a single transparent pixel.
+Environment=XCURSOR_PATH=/usr/local/share/icons XCURSOR_THEME=blank
 EnvironmentFile=/etc/default/info-gui
 ExecStart=/usr/bin/cage -- /usr/local/bin/info-gui -kiosk
 Restart=always

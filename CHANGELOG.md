@@ -3,6 +3,14 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.3.2 - 2026-09-27
+
+### Fixed
+- info-gui: no mouse pointer on the Tinker Board's screen. cage draws one even
+  with no mouse attached, so `info-gui.service` points it at a cursor theme
+  (`cmd/info-gui/cursors/blank`, installed to `/usr/local/share/icons`) whose
+  cursor is a single transparent pixel.
+
 ## 1.3.1 - 2026-09-27
 
 ### Changed
