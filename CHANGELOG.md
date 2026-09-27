@@ -3,6 +3,13 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.4.1 - 2026-09-27
+
+### Changed
+- info-gui: the crypto charts have a price axis of 7 round-number labels
+  (e.g. £60,000 to £66,000 in £1,000 steps) with gridlines, in place of just
+  the week's high and low.
+
 ## 1.4.0 - 2026-09-27
 
 ### Added

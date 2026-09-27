@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -51,5 +52,21 @@ func TestPageOpacity(t *testing.T) {
 	// Fully shown, it sleeps until the fade out starts.
 	if _, wake := pageOpacity(since.Add(30*time.Second), since, next); !wake.Equal(next.Add(-fadeTime)) {
 		t.Errorf("wake %v, want %v", wake, next.Add(-fadeTime))
+	}
+}
+
+func TestPriceAxis(t *testing.T) {
+	for _, c := range []struct{ lo, hi, bottom, step float64 }{
+		{60240, 65454, 60000, 1000},
+		{1931, 2087, 1920, 30},
+		{100, 100, 100, 0.2}, // flat prices still get a usable axis
+	} {
+		bottom, step := priceAxis(c.lo, c.hi, 7)
+		if math.Abs(bottom-c.bottom) > 1e-9 || math.Abs(step-c.step) > 1e-9 {
+			t.Errorf("priceAxis(%v, %v) = %v, %v; want %v, %v", c.lo, c.hi, bottom, step, c.bottom, c.step)
+		}
+		if bottom > c.lo || bottom+6*step < c.hi {
+			t.Errorf("priceAxis(%v, %v): %v..%v doesn't cover the prices", c.lo, c.hi, bottom, bottom+6*step)
+		}
 	}
 }

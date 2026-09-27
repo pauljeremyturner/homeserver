@@ -544,8 +544,8 @@ func (u *ui) coin(gtx layout.Context, now time.Time, sym string, c *cryptopb.Cry
 }
 
 // priceChart draws a coin's price history filling the space it's given: a
-// line with a faint fill, the week's high and low marked at the right, and
-// the days along the bottom (in now's time zone).
+// line with a faint fill, a price axis of axisLabels round-number gridlines
+// labelled on the right, and the days along the bottom (in now's time zone).
 func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpdate, accent color.NRGBA) layout.Dimensions {
 	size := gtx.Constraints.Max
 	dims := layout.Dimensions{Size: size}
@@ -553,19 +553,19 @@ func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpd
 	if n < 2 {
 		return dims
 	}
-	lo, hi := c.Min, c.Max
-	if hi <= lo {
-		hi = lo + 1
-	}
+	lo, step := priceAxis(c.Min, c.Max, axisLabels)
+	hi := lo + step*(axisLabels-1)
 	// Times place the points and the day labels; an older server sends none,
 	// so fall back to even spacing and no days.
 	times := c.TimesUnix
 	if len(times) != n {
 		times = nil
 	}
-	w := float32(size.X)
+	// The price labels get their own column on the right, clear of the line.
+	gutter := gtx.Dp(54)
+	w := float32(size.X - gutter)
 	dayRow := gtx.Dp(18)
-	top, bottom := float32(gtx.Dp(18)), float32(size.Y-dayRow-gtx.Dp(18))
+	top, bottom := float32(gtx.Dp(8)), float32(size.Y-dayRow-gtx.Dp(8))
 	xAt := func(i int) float32 { return float32(i) / float32(n-1) * w }
 	var t0, t1 int64
 	if times != nil {
@@ -591,12 +591,13 @@ func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpd
 			}
 		}
 	}
-	// High and low.
-	for _, p := range []float64{hi, lo} {
-		strokeLine(gtx.Ops, colRule, float32(gtx.Dp(1)), f32.Pt(0, yAt(p)), f32.Pt(w, yAt(p)))
+	// Price axis.
+	for k := range axisLabels {
+		p := lo + step*float64(k)
+		y := yAt(p)
+		strokeLine(gtx.Ops, colRule, float32(gtx.Dp(1)), f32.Pt(0, y), f32.Pt(w, y))
+		u.labelRight(gtx, size.X, int(y), u.label(12, colDim, font.Normal, "£"+thousands(p)))
 	}
-	u.labelRight(gtx, size.X, int(top)-gtx.Dp(9), u.label(12, colDim, font.Normal, "£"+thousands(c.Max)))
-	u.labelRight(gtx, size.X, int(bottom)+gtx.Dp(9), u.label(12, colDim, font.Normal, "£"+thousands(c.Min)))
 
 	pts := make([]f32.Point, n)
 	for i, p := range c.Prices {
@@ -611,6 +612,29 @@ func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpd
 	strokeLine(gtx.Ops, accent, stroke, pts...)
 	fillCircle(gtx.Ops, accent, pts[n-1].X, pts[n-1].Y, stroke*1.8)
 	return dims
+}
+
+// axisLabels is how many round-number prices are marked up a chart.
+const axisLabels = 7
+
+// priceAxis picks a round-number step and a bottom value, a multiple of the
+// step, so that n evenly spaced labels from the bottom cover lo..hi as
+// tightly as possible.
+func priceAxis(lo, hi float64, n int) (bottom, step float64) {
+	if hi <= lo {
+		hi = lo + 1
+	}
+	mag := math.Pow(10, math.Floor(math.Log10((hi-lo)/float64(n-1))))
+	for {
+		for _, m := range []float64{1, 1.5, 2, 2.5, 3, 4, 5, 6, 8} {
+			step = m * mag
+			bottom = math.Floor(lo/step) * step
+			if bottom+step*float64(n-1) >= hi {
+				return bottom, step
+			}
+		}
+		mag *= 10
+	}
 }
 
 // labelRight draws a label right-aligned to x and vertically centred on y.
