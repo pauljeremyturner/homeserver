@@ -461,7 +461,7 @@ func moonPhaseLabel(phase weatherpb.MoonPhase) string {
 // --- solar system ----------------------------------------------------------
 
 // solarSystem draws the planets on a top-down dial filling the column's
-// width (or height, if that's smaller), with each planet's initial beside it.
+// width (or height, if that's smaller), with each planet's name beside it.
 func (u *ui) solarSystem(gtx layout.Context, p *planetspb.PlanetsUpdate) layout.Dimensions {
 	width := gtx.Constraints.Max.X
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -474,22 +474,33 @@ func (u *ui) solarSystem(gtx layout.Context, p *planetspb.PlanetsUpdate) layout.
 			if p == nil || len(p.Planets) == 0 {
 				return layout.Dimensions{Size: image.Pt(width, size)}
 			}
-			defer op.Offset(image.Pt((width-size)/2, 0)).Push(gtx.Ops).Pop()
+			left := (width - size) / 2
+			defer op.Offset(image.Pt(left, 0)).Push(gtx.Ops).Pop()
 			lons := make([]float64, len(p.Planets))
 			for i, pl := range p.Planets {
 				lons[i] = pl.LongitudeDeg
 			}
-			// Leave room outside the last orbit for its planet's initial.
-			spots := planetDial(gtx, lons, size, gtx.Dp(14))
+			spots := planetDial(gtx, lons, size, gtx.Dp(8))
 			for i, pl := range p.Planets {
 				if pl.Name == "" {
 					continue
 				}
-				// The initial sits just outside the planet along its radius.
-				off := float32(gtx.Dp(10))
-				x := spots[i].pos.X + spots[i].out.X*off
-				y := spots[i].pos.Y + spots[i].out.Y*off
-				u.labelAt(gtx, int(x), int(y), u.label(10, planetColour(i), font.Medium, pl.Name[:1]))
+				// The name sits beside the planet on its outer side, so names
+				// read away from the Sun, unless that would run off the column.
+				pos, gap := spots[i].pos, float32(gtx.Dp(7))
+				l := u.label(11, planetColour(i), font.Medium, pl.Name)
+				nameW := u.labelWidth(gtx, l)
+				right := spots[i].out.X >= 0
+				if right && int(pos.X+gap)+nameW > width-left {
+					right = false
+				} else if !right && int(pos.X-gap)-nameW < -left {
+					right = true
+				}
+				if right {
+					u.labelLeft(gtx, int(pos.X+gap), int(pos.Y), l)
+				} else {
+					u.labelRight(gtx, int(pos.X-gap), int(pos.Y), l)
+				}
 			}
 			return layout.Dimensions{Size: image.Pt(width, size)}
 		}),
@@ -635,6 +646,25 @@ func priceAxis(lo, hi float64, n int) (bottom, step float64) {
 		}
 		mag *= 10
 	}
+}
+
+// labelWidth measures a label without drawing it.
+func (u *ui) labelWidth(gtx layout.Context, l material.LabelStyle) int {
+	macro := op.Record(gtx.Ops)
+	gtx.Constraints.Min = image.Point{}
+	dims := l.Layout(gtx)
+	macro.Stop()
+	return dims.Size.X
+}
+
+// labelLeft draws a label left-aligned to x and vertically centred on y.
+func (u *ui) labelLeft(gtx layout.Context, x, y int, l material.LabelStyle) {
+	macro := op.Record(gtx.Ops)
+	gtx.Constraints.Min = image.Point{}
+	dims := l.Layout(gtx)
+	call := macro.Stop()
+	defer op.Offset(image.Pt(x, y-dims.Size.Y/2)).Push(gtx.Ops).Pop()
+	call.Add(gtx.Ops)
 }
 
 // labelRight draws a label right-aligned to x and vertically centred on y.

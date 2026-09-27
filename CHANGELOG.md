@@ -3,6 +3,13 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.4.2 - 2026-09-27
+
+### Changed
+- info-gui: the solar system dial names each planet in full beside it, on
+  its side away from the Sun, flipping sides where a name would run off the
+  edge, in place of initials.
+
 ## 1.4.1 - 2026-09-27
 
 ### Changed
