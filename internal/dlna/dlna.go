@@ -19,6 +19,7 @@ type Position struct {
 	Album       string
 	TrackNumber string
 	AlbumArtURL string
+	TrackURI    string // where the renderer is fetching the track from
 	Duration    string
 	RelTime     string
 }
@@ -88,6 +89,7 @@ type positionInfoEnvelope struct {
 			TrackDuration string `xml:"TrackDuration"`
 			TrackMetaData string `xml:"TrackMetaData"`
 			RelTime       string `xml:"RelTime"`
+			TrackURI      string `xml:"TrackURI"`
 		} `xml:"GetPositionInfoResponse"`
 	} `xml:"Body"`
 }
@@ -102,6 +104,7 @@ type didlLite struct {
 		Album       string `xml:"album"`
 		TrackNumber string `xml:"originalTrackNumber"`
 		AlbumArtURI string `xml:"albumArtURI"`
+		Res         string `xml:"res"`
 	} `xml:"item"`
 }
 
@@ -134,6 +137,7 @@ func GetPositionInfo(controlURL, serviceType string) (Position, error) {
 	pos := Position{
 		Duration: env.Body.GetPositionInfoResponse.TrackDuration,
 		RelTime:  env.Body.GetPositionInfoResponse.RelTime,
+		TrackURI: env.Body.GetPositionInfoResponse.TrackURI,
 	}
 
 	metaXML := env.Body.GetPositionInfoResponse.TrackMetaData
@@ -145,6 +149,9 @@ func GetPositionInfo(controlURL, serviceType string) (Position, error) {
 			pos.Album = didl.Item.Album
 			pos.TrackNumber = didl.Item.TrackNumber
 			pos.AlbumArtURL = didl.Item.AlbumArtURI
+			if pos.TrackURI == "" {
+				pos.TrackURI = didl.Item.Res
+			}
 		}
 	}
 	return pos, nil
@@ -160,4 +167,42 @@ func Play(controlURL, serviceType string) error {
 func Pause(controlURL, serviceType string) error {
 	_, err := soapCall(controlURL, serviceType, "Pause", "<InstanceID>0</InstanceID>")
 	return err
+}
+
+// descriptionPaths are where common UPnP devices serve their device
+// description (the LOCATION they'd announce over SSDP): Wiimu/Linkplay
+// speakers and Rygel, Plex, MiniDLNA, and a few other embedded stacks.
+// Probing these avoids needing SSDP multicast, which doesn't cross Docker's
+// bridge network.
+var descriptionPaths = []string{
+	"/description.xml",
+	"/DeviceDescription.xml",
+	"/rootDesc.xml",
+	"/desc.xml",
+	"/dmr.xml",
+	"/dms.xml",
+}
+
+type deviceDescription struct {
+	Device struct {
+		FriendlyName string `xml:"friendlyName"`
+	} `xml:"device"`
+}
+
+// FriendlyName finds the UPnP device serving at base ("http://host:port")
+// and returns its friendlyName, e.g. "Plex Media Server: fedora".
+func FriendlyName(base string) (string, error) {
+	for _, p := range descriptionPaths {
+		resp, err := httpClient.Get(base + p)
+		if err != nil {
+			return "", err
+		}
+		var desc deviceDescription
+		err = xml.NewDecoder(resp.Body).Decode(&desc)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK && err == nil && desc.Device.FriendlyName != "" {
+			return desc.Device.FriendlyName, nil
+		}
+	}
+	return "", fmt.Errorf("no UPnP device description found at %s", base)
 }

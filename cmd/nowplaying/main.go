@@ -26,6 +26,8 @@ type nowPlaying struct {
 	AlbumArtURL string `json:"album_art_url"`
 	Duration    string `json:"duration"`
 	RelTime     string `json:"rel_time"`
+	Source      string `json:"source"`   // media server the track comes from
+	Renderer    string `json:"renderer"` // device playing it
 	UpdatedAt   string `json:"updated_at"`
 	Stale       bool   `json:"stale"`
 }
@@ -84,7 +86,7 @@ func main() {
 	s := &store{}
 	art := newArtCache(os.Getenv("PLEX_URL"), os.Getenv("PLEX_TOKEN"))
 
-	go pollLoop(s, art, controlURL, serviceType, time.Duration(pollSeconds)*time.Second)
+	go pollLoop(s, art, newDeviceNames(), controlURL, serviceType, time.Duration(pollSeconds)*time.Second)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/now-playing", func(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +139,7 @@ func togglePlayback(controlURL, serviceType string) (string, error) {
 	return "PLAYING", nil
 }
 
-func pollLoop(s *store, art *artCache, controlURL, serviceType string, interval time.Duration) {
+func pollLoop(s *store, art *artCache, names *deviceNames, controlURL, serviceType string, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -164,6 +166,8 @@ func pollLoop(s *store, art *artCache, controlURL, serviceType string, interval 
 			np.AlbumArtURL = art.resolve(pos.AlbumArtURL, pos.Album, pos.Artist)
 			np.Duration = pos.Duration
 			np.RelTime = pos.RelTime
+			np.Source = names.lookup(pos.TrackURI)
+			np.Renderer = names.lookup(controlURL)
 		}
 		s.set(np)
 	}

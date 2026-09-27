@@ -3,6 +3,16 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.2.0 - 2026-09-27
+
+### Added
+- nowplaying: the music source and renderer ("from Plex Media Server: fedora",
+  "on S10+_2748") in small text at the bottom right of the text area. Names
+  are the devices' UPnP friendly names, read from their device descriptions
+  (the source is found from the track's URL). A source without one shows its
+  host instead.
+- nowplaying: `source` and `renderer` fields in `/api/now-playing`.
+
 ## 1.1.1 - 2026-09-27
 
 ### Added

@@ -126,6 +126,26 @@
   }
   #state-badge:empty { display: none; }
   #state-badge.stale { color: #c0392b; }
+  /* Where the music is coming from and what's playing it, tucked in the
+     bottom right of the text area, independent of the tap-to-cycle text. */
+  #meta { position: relative; padding-bottom: 52px; }
+  #devices {
+    position: absolute;
+    right: 14px;
+    bottom: 10px;
+    left: 14px;
+    text-align: right;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #666;
+  }
+  #devices div {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #devices div:empty { display: none; }
+  #devices .label { color: #444; }
 
   /* Landscape: art on the left as a square, text stacked on the right */
   @media (orientation: landscape) {
@@ -144,7 +164,7 @@
       flex-direction: column;
       justify-content: center;
       text-align: left;
-      padding: 24px 28px;
+      padding: 24px 28px 52px;
     }
   }
 </style>
@@ -164,6 +184,10 @@
     <div id="artist">&nbsp;</div>
     <div id="album">&nbsp;</div>
     <div id="state-badge"></div>
+    <div id="devices">
+      <div id="source"></div>
+      <div id="renderer"></div>
+    </div>
   </div>
 </div>
 
@@ -175,6 +199,8 @@ var titleEl = document.getElementById('title');
 var artistEl = document.getElementById('artist');
 var albumEl = document.getElementById('album');
 var stateEl = document.getElementById('state-badge');
+var sourceEl = document.getElementById('source');
+var rendererEl = document.getElementById('renderer');
 var artStatusEl = document.getElementById('art-status');
 var statusPlay = document.getElementById('status-play');
 var statusPause = document.getElementById('status-pause');
@@ -240,6 +266,16 @@ function setText(el, text) {
   el.textContent = text && text.length ? text : ' ';
 }
 
+function setDevice(el, label, name) {
+  el.textContent = '';
+  if (!name) return;
+  var l = document.createElement('span');
+  l.className = 'label';
+  l.textContent = label;
+  el.appendChild(l);
+  el.appendChild(document.createTextNode(name));
+}
+
 function showIdle(text) {
   showing = false;
   loadingEl.textContent = text;
@@ -277,6 +313,8 @@ function applyState(d) {
   setText(titleEl, d.title);
   setText(artistEl, d.artist);
   setText(albumEl, d.album);
+  setDevice(sourceEl, 'from ', d.source);
+  setDevice(rendererEl, 'on ', d.renderer);
   stateEl.textContent = '';
   stateEl.className = '';
 
