@@ -23,6 +23,9 @@ import (
 	"gioui.org/unit"
 )
 
+// version is set at build time by build.sh (-ldflags "-X main.version=...").
+var version = "dev"
+
 func main() {
 	server := flag.String("server", envOr("INFO_SERVER_ADDR", "localhost:9090"), "info-server gRPC address")
 	demo := flag.Bool("demo", false, "use built-in sample data instead of info-server")

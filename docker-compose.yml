@@ -77,6 +77,9 @@ services:
     build:
       context: .
       dockerfile: cmd/info-server/Dockerfile
+      args:
+        # Set by deploy.sh from `git describe`; shown on info-gui's screen.
+        - VERSION=${VERSION:-dev}
     container_name: info-server
     ports:
       - 9090:9090

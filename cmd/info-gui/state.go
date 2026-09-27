@@ -30,15 +30,18 @@ type state struct {
 	wallet    *cryptopb.WalletBalanceUpdate
 	boardTemp float64
 	hasTemp   bool
+	// serverVersion is info-server's build version, from stream headers.
+	serverVersion string
 }
 
 type snapshot struct {
-	weather   *weatherpb.WeatherUpdate
-	news      *newspb.NewsUpdate
-	btc, eth  *cryptopb.CryptoUpdate
-	wallet    *cryptopb.WalletBalanceUpdate
-	boardTemp float64
-	hasTemp   bool
+	weather       *weatherpb.WeatherUpdate
+	news          *newspb.NewsUpdate
+	btc, eth      *cryptopb.CryptoUpdate
+	wallet        *cryptopb.WalletBalanceUpdate
+	boardTemp     float64
+	hasTemp       bool
+	serverVersion string
 }
 
 func newState() *state {
@@ -62,16 +65,23 @@ func (s *state) snapshot() snapshot {
 		wallet:    s.wallet,
 		boardTemp: s.boardTemp,
 		hasTemp:   s.hasTemp,
+
+		serverVersion: s.serverVersion,
 	}
 }
 
 // streamLoop subscribes to a server-streaming RPC and calls onMsg for every
 // message, reconnecting after a fixed delay if the stream fails (the server
 // resends its latest value on subscribe, so a reconnect is just a gap).
-func streamLoop[T any](ctx context.Context, name string, connect func(context.Context) (grpc.ServerStreamingClient[T], error), onMsg func(*T)) {
+func streamLoop[T any](ctx context.Context, s *state, name string, connect func(context.Context) (grpc.ServerStreamingClient[T], error), onMsg func(*T)) {
 	for {
 		stream, err := connect(ctx)
 		if err == nil {
+			if md, err := stream.Header(); err == nil {
+				if v := md.Get("server-version"); len(v) > 0 {
+					s.update(func(s *state) { s.serverVersion = v[0] })
+				}
+			}
 			for {
 				msg, err := stream.Recv()
 				if err != nil {
@@ -102,25 +112,25 @@ func startStreams(ctx context.Context, addr string, s *state, changed func()) er
 	newsClient := newspb.NewNewsServiceClient(conn)
 	cryptoClient := cryptopb.NewCryptoServiceClient(conn)
 
-	go streamLoop(ctx, "weather",
+	go streamLoop(ctx, s, "weather",
 		func(ctx context.Context) (grpc.ServerStreamingClient[weatherpb.WeatherUpdate], error) {
 			return weatherClient.StreamWeather(ctx, &weatherpb.StreamWeatherRequest{})
 		},
 		func(u *weatherpb.WeatherUpdate) { s.update(func(s *state) { s.weather = u }); changed() },
 	)
-	go streamLoop(ctx, "news",
+	go streamLoop(ctx, s, "news",
 		func(ctx context.Context) (grpc.ServerStreamingClient[newspb.NewsUpdate], error) {
 			return newsClient.StreamNews(ctx, &newspb.StreamNewsRequest{})
 		},
 		func(u *newspb.NewsUpdate) { s.update(func(s *state) { s.news = u }); changed() },
 	)
-	go streamLoop(ctx, "crypto",
+	go streamLoop(ctx, s, "crypto",
 		func(ctx context.Context) (grpc.ServerStreamingClient[cryptopb.CryptoUpdate], error) {
 			return cryptoClient.StreamCrypto(ctx, &cryptopb.StreamCryptoRequest{})
 		},
 		func(u *cryptopb.CryptoUpdate) { s.update(func(s *state) { s.crypto[u.Symbol] = u }); changed() },
 	)
-	go streamLoop(ctx, "wallet",
+	go streamLoop(ctx, s, "wallet",
 		func(ctx context.Context) (grpc.ServerStreamingClient[cryptopb.WalletBalanceUpdate], error) {
 			return cryptoClient.StreamWalletBalance(ctx, &cryptopb.StreamWalletBalanceRequest{})
 		},

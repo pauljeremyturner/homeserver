@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	"homeserver/internal/broadcast"
 
@@ -29,6 +30,17 @@ type coinConfig struct {
 var trackedCoins = []coinConfig{
 	{"bitcoin", "BTC"},
 	{"ethereum", "ETH"},
+}
+
+// version is set at build time (-ldflags "-X main.version=...") and sent to
+// clients as "server-version" header metadata on every stream.
+var version = "dev"
+
+func versionHeader(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	if err := ss.SetHeader(metadata.Pairs("server-version", version)); err != nil {
+		return err
+	}
+	return handler(srv, ss)
 }
 
 func envOr(key, fallback string) string {
@@ -67,12 +79,12 @@ func main() {
 		log.Fatalf("listen on %s: %v", addr, err)
 	}
 
-	srv := grpc.NewServer()
+	srv := grpc.NewServer(grpc.StreamInterceptor(versionHeader))
 	weatherpb.RegisterWeatherServiceServer(srv, &weatherServer{bc: weatherBC})
 	newspb.RegisterNewsServiceServer(srv, &newsServer{bc: newsBC})
 	cryptopb.RegisterCryptoServiceServer(srv, &cryptoServer{bcs: cryptoBCs, walletBC: walletBC})
 
-	log.Printf("info-server listening on %s", addr)
+	log.Printf("info-server %s listening on %s", version, addr)
 	if err := srv.Serve(lis); err != nil {
 		log.Fatalf("serve: %v", err)
 	}

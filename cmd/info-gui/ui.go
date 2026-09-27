@@ -151,10 +151,43 @@ func (u *ui) header(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 						l.Alignment = text.End
 						return l.Layout(gtx)
 					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						vers := "client " + version
+						if s.serverVersion != "" {
+							vers += "  ·  server " + s.serverVersion
+						}
+						children := []layout.FlexChild{
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								gtx.Constraints.Min.X = gtx.Constraints.Max.X
+								l := u.label(13, colFaint, font.Normal, vers)
+								l.Alignment = text.End
+								return l.Layout(gtx)
+							}),
+						}
+						if s.hasTemp {
+							children = append(children,
+								layout.Rigid(u.label(13, colFaint, font.Normal, "  ·  ").Layout),
+								layout.Rigid(u.label(13, boardTempColour(s.boardTemp), font.Normal, fmt.Sprintf("board %.1f°C", s.boardTemp)).Layout))
+						}
+						return layout.Flex{Alignment: layout.Baseline}.Layout(gtx, children...)
+					}),
 				)
 			}),
 		)
 	})
+}
+
+// boardTempColour is dim at the Tinker Board's normal running temperature
+// (~65C with the dashboard up), amber when it's running hot and red as it
+// nears the RK3288's ~85C throttling point.
+func boardTempColour(c float64) color.NRGBA {
+	switch {
+	case c >= 80:
+		return colDown
+	case c >= 70:
+		return colSun
+	}
+	return colFaint
 }
 
 // --- weather / moon --------------------------------------------------------

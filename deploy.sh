@@ -28,5 +28,5 @@ from=$(git describe --tags --always)
 git -c advice.detachedHead=false checkout --quiet --detach "$ref"
 echo "deploy: $from -> $(git describe --tags --always)"
 
-docker compose up -d --build --remove-orphans
+VERSION=$(git describe --tags --always) docker compose up -d --build --remove-orphans
 docker compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'

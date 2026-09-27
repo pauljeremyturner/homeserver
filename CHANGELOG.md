@@ -3,6 +3,16 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.3.0 - 2026-09-27
+
+### Added
+- info-gui: a line under the location with the client and server versions
+  and the board temperature, which turns amber at 70C and red at 80C.
+- info-server: sends its version as `server-version` gRPC header metadata on
+  every stream. Both binaries are stamped with `git describe` at build time
+  (`build.sh` for info-gui; `VERSION`, set by `deploy.sh`, for info-server's
+  image).
+
 ## 1.2.0 - 2026-09-27
 
 ### Added
