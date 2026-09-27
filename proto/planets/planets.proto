@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package planets;
+
+option go_package = "homeserver/gen/planets";
+
+service PlanetService {
+  // StreamPlanets pushes the planets' positions around the Sun every hour,
+  // immediately sending the latest on subscribe.
+  rpc StreamPlanets(StreamPlanetsRequest) returns (stream PlanetsUpdate);
+}
+
+message StreamPlanetsRequest {}
+
+message PlanetsUpdate {
+  int64 computed_at_unix = 1;
+  // The eight planets, Mercury first.
+  repeated Planet planets = 2;
+}
+
+message Planet {
+  string name = 1;
+  // Heliocentric ecliptic longitude (J2000), degrees in [0, 360), measured
+  // anticlockwise seen from the north from the March equinox direction.
+  double longitude_deg = 2;
+  double distance_au = 3;
+}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/font/gofont"
 	"gioui.org/layout"
@@ -21,6 +22,8 @@ import (
 	"gioui.org/widget/material"
 
 	cryptopb "homeserver/gen/crypto"
+	displaypb "homeserver/gen/display"
+	planetspb "homeserver/gen/planets"
 	weatherpb "homeserver/gen/weather"
 )
 
@@ -64,6 +67,8 @@ type ui struct {
 	// name; nil until known, when the board's own zone is used.
 	locName string
 	loc     *time.Location
+	// forcePage pins one page with no fading (-page, for screenshots).
+	forcePage displaypb.Page
 }
 
 func newUI() *ui {
@@ -90,11 +95,25 @@ func (u *ui) layout(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.header(gtx, now, s) }),
 		layout.Rigid(u.rule),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.weather(gtx, now, s.weather) }),
-		layout.Rigid(u.rule),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.crypto(gtx, s) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.ticker(gtx, now, s) }),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.page(gtx, now, s) }),
 	)
+}
+
+// page draws whichever page is showing below the header, fading between
+// them; the header itself never fades, so the clock stays steady.
+func (u *ui) page(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
+	page := u.forcePage
+	if page == displaypb.Page_PAGE_UNKNOWN {
+		var since, next time.Time
+		page, since, next = pageShowing(gtx.Now, s.page)
+		alpha, wake := pageOpacity(gtx.Now, since, next)
+		gtx.Execute(op.InvalidateCmd{At: wake})
+		defer paint.PushOpacity(gtx.Ops, alpha).Pop()
+	}
+	if page == displaypb.Page_PAGE_MARKETS {
+		return u.markets(gtx, now, s)
+	}
+	return u.weather(gtx, now, s)
 }
 
 // location returns the time zone of the weather location, or nil if it's
@@ -192,30 +211,41 @@ func boardTempColour(c float64) color.NRGBA {
 
 // --- weather / moon --------------------------------------------------------
 
-func (u *ui) weather(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) layout.Dimensions {
+func (u *ui) weather(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
+	w := s.weather
 	if w == nil {
 		return layout.Center.Layout(gtx, u.label(18, colFaint, font.Normal, "Waiting for weather...").Layout)
 	}
-	// The band is centred vertically in whatever height is left over, with
-	// the three columns top-aligned so their headings line up.
-	return layout.Inset{Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.W.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = image.Point{}
-			return layout.Flex{}.Layout(gtx,
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.today(gtx, w) }),
-				layout.Flexed(0.85, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.tomorrow(gtx, w) }),
-						layout.Rigid(layout.Spacer{Height: 18}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, w) }),
-					)
-				}),
-				layout.Rigid(layout.Spacer{Width: 16}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.sun(gtx, now, w) }),
-				layout.Rigid(layout.Spacer{Width: 8}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wind(gtx, w) }),
-			)
+	// Three columns, top-aligned so their headings line up: the forecasts,
+	// then sun and wind, then the solar system in whatever width is left.
+	column := func(width unit.Dp, w layout.Widget) layout.FlexChild {
+		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X, gtx.Constraints.Max.X = gtx.Dp(width), gtx.Dp(width)
+			return w(gtx)
 		})
+	}
+	return layout.Inset{Top: 16, Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{}.Layout(gtx,
+			column(300, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.today(gtx, w) }),
+					layout.Rigid(layout.Spacer{Height: 22}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.tomorrow(gtx, w) }),
+					layout.Rigid(layout.Spacer{Height: 22}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, w) }),
+				)
+			}),
+			layout.Rigid(layout.Spacer{Width: 12}.Layout),
+			column(132, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.sun(gtx, now, w) }),
+					layout.Rigid(layout.Spacer{Height: 26}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wind(gtx, w) }),
+				)
+			}),
+			layout.Rigid(layout.Spacer{Width: 20}.Layout),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.solarSystem(gtx, s.planets) }),
+		)
 	})
 }
 
@@ -246,8 +276,7 @@ func (u *ui) today(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimens
 		func(gtx layout.Context) layout.Dimensions { return weatherIcon(gtx, w.CurrentCategory, gtx.Dp(96)) },
 		u.label(48, colText, font.Medium, w.TempC+"°").Layout,
 		u.label(16, colText, font.Normal, w.CurrentDesc).Layout,
-		u.label(14, colDim, font.Normal, "feels "+w.FeelsLikeC+"°").Layout,
-		u.label(14, colDim, font.Normal, w.Humidity+"% humidity").Layout,
+		u.label(14, colDim, font.Normal, "feels "+w.FeelsLikeC+"°  ·  "+w.Humidity+"% humidity").Layout,
 	)
 }
 
@@ -429,21 +458,63 @@ func moonPhaseLabel(phase weatherpb.MoonPhase) string {
 	return "Unknown"
 }
 
-// --- crypto / wallet -------------------------------------------------------
+// --- solar system ----------------------------------------------------------
 
-func (u *ui) crypto(gtx layout.Context, s snapshot) layout.Dimensions {
-	return layout.Inset{Top: 10, Bottom: 14, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, "BTC", s.btc, colBTC) }),
-			layout.Rigid(layout.Spacer{Width: 20}.Layout),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, "ETH", s.eth, colETH) }),
-			layout.Rigid(layout.Spacer{Width: 20}.Layout),
-			layout.Flexed(0.8, func(gtx layout.Context) layout.Dimensions { return u.wallet(gtx, s) }),
-		)
-	})
+// solarSystem draws the planets on a top-down dial filling the column's
+// width (or height, if that's smaller), with each planet's initial beside it.
+func (u *ui) solarSystem(gtx layout.Context, p *planetspb.PlanetsUpdate) layout.Dimensions {
+	width := gtx.Constraints.Max.X
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return u.centred(gtx, width, u.label(13, colDim, font.Medium, "SOLAR SYSTEM"))
+		}),
+		layout.Rigid(layout.Spacer{Height: 8}.Layout),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			size := min(width, gtx.Constraints.Max.Y)
+			if p == nil || len(p.Planets) == 0 {
+				return layout.Dimensions{Size: image.Pt(width, size)}
+			}
+			defer op.Offset(image.Pt((width-size)/2, 0)).Push(gtx.Ops).Pop()
+			lons := make([]float64, len(p.Planets))
+			for i, pl := range p.Planets {
+				lons[i] = pl.LongitudeDeg
+			}
+			// Leave room outside the last orbit for its planet's initial.
+			spots := planetDial(gtx, lons, size, gtx.Dp(14))
+			for i, pl := range p.Planets {
+				if pl.Name == "" {
+					continue
+				}
+				// The initial sits just outside the planet along its radius.
+				off := float32(gtx.Dp(10))
+				x := spots[i].pos.X + spots[i].out.X*off
+				y := spots[i].pos.Y + spots[i].out.Y*off
+				u.labelAt(gtx, int(x), int(y), u.label(10, planetColour(i), font.Medium, pl.Name[:1]))
+			}
+			return layout.Dimensions{Size: image.Pt(width, size)}
+		}),
+	)
 }
 
-func (u *ui) coin(gtx layout.Context, sym string, c *cryptopb.CryptoUpdate, accent color.NRGBA) layout.Dimensions {
+// --- crypto / wallet / news ------------------------------------------------
+
+func (u *ui) markets(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: 14, Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, "BTC", s.btc, colBTC) }),
+					layout.Rigid(layout.Spacer{Width: 24}.Layout),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, "ETH", s.eth, colETH) }),
+				)
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wallet(gtx, s) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.ticker(gtx, now, s) }),
+	)
+}
+
+func (u *ui) coin(gtx layout.Context, now time.Time, sym string, c *cryptopb.CryptoUpdate, accent color.NRGBA) layout.Dimensions {
 	if c == nil {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(u.label(13, accent, font.Bold, sym+" / GBP").Layout),
@@ -466,29 +537,111 @@ func (u *ui) coin(gtx layout.Context, sym string, c *cryptopb.CryptoUpdate, acce
 				}),
 			)
 		}),
-		layout.Rigid(u.label(28, colText, font.Medium, "£"+thousands(c.Latest)).Layout),
+		layout.Rigid(u.label(30, colText, font.Medium, "£"+thousands(c.Latest)).Layout),
 		layout.Rigid(layout.Spacer{Height: 4}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return sparkline(gtx, c.Prices, c.Min, c.Max, accent, gtx.Constraints.Max.X, gtx.Dp(40))
-		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.priceChart(gtx, now, c, accent) }),
 	)
 }
 
+// priceChart draws a coin's price history filling the space it's given: a
+// line with a faint fill, the week's high and low marked at the right, and
+// the days along the bottom (in now's time zone).
+func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpdate, accent color.NRGBA) layout.Dimensions {
+	size := gtx.Constraints.Max
+	dims := layout.Dimensions{Size: size}
+	n := len(c.Prices)
+	if n < 2 {
+		return dims
+	}
+	lo, hi := c.Min, c.Max
+	if hi <= lo {
+		hi = lo + 1
+	}
+	// Times place the points and the day labels; an older server sends none,
+	// so fall back to even spacing and no days.
+	times := c.TimesUnix
+	if len(times) != n {
+		times = nil
+	}
+	w := float32(size.X)
+	dayRow := gtx.Dp(18)
+	top, bottom := float32(gtx.Dp(18)), float32(size.Y-dayRow-gtx.Dp(18))
+	xAt := func(i int) float32 { return float32(i) / float32(n-1) * w }
+	var t0, t1 int64
+	if times != nil {
+		t0, t1 = times[0], times[n-1]
+		xAt = func(i int) float32 { return float32(times[i]-t0) / float32(max(t1-t0, 1)) * w }
+	}
+	yAt := func(p float64) float32 { return top + (1-float32((p-lo)/(hi-lo)))*(bottom-top) }
+
+	// Day boundaries and names.
+	if times != nil {
+		loc := now.Location()
+		start := time.Unix(t0, 0).In(loc)
+		day := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc)
+		for ; day.Unix() < t1; day = day.AddDate(0, 0, 1) {
+			if day.Unix() > t0 {
+				x := float32(day.Unix()-t0) / float32(t1-t0) * w
+				strokeLine(gtx.Ops, colRule, float32(gtx.Dp(1)), f32.Pt(x, top), f32.Pt(x, float32(size.Y-dayRow)))
+			}
+			noon := day.Add(12 * time.Hour).Unix()
+			if noon > t0 && noon < t1 {
+				x := int(float32(noon-t0) / float32(t1-t0) * w)
+				u.labelAt(gtx, x, size.Y-dayRow/2, u.label(12, colFaint, font.Normal, day.Format("Mon")))
+			}
+		}
+	}
+	// High and low.
+	for _, p := range []float64{hi, lo} {
+		strokeLine(gtx.Ops, colRule, float32(gtx.Dp(1)), f32.Pt(0, yAt(p)), f32.Pt(w, yAt(p)))
+	}
+	u.labelRight(gtx, size.X, int(top)-gtx.Dp(9), u.label(12, colDim, font.Normal, "£"+thousands(c.Max)))
+	u.labelRight(gtx, size.X, int(bottom)+gtx.Dp(9), u.label(12, colDim, font.Normal, "£"+thousands(c.Min)))
+
+	pts := make([]f32.Point, n)
+	for i, p := range c.Prices {
+		pts[i] = f32.Pt(xAt(i), yAt(p))
+	}
+	area := append([]f32.Point{f32.Pt(pts[0].X, bottom)}, pts...)
+	area = append(area, f32.Pt(pts[n-1].X, bottom))
+	fill := accent
+	fill.A = 40
+	fillPolygon(gtx.Ops, fill, area)
+	stroke := float32(gtx.Dp(2))
+	strokeLine(gtx.Ops, accent, stroke, pts...)
+	fillCircle(gtx.Ops, accent, pts[n-1].X, pts[n-1].Y, stroke*1.8)
+	return dims
+}
+
+// labelRight draws a label right-aligned to x and vertically centred on y.
+func (u *ui) labelRight(gtx layout.Context, x, y int, l material.LabelStyle) {
+	macro := op.Record(gtx.Ops)
+	gtx.Constraints.Min = image.Point{}
+	dims := l.Layout(gtx)
+	call := macro.Stop()
+	defer op.Offset(image.Pt(x-dims.Size.X, y-dims.Size.Y/2)).Push(gtx.Ops).Pop()
+	call.Add(gtx.Ops)
+}
+
+// wallet is a single line under the charts; nothing if no wallet is
+// configured on the server.
 func (u *ui) wallet(gtx layout.Context, s snapshot) layout.Dimensions {
 	if s.wallet == nil {
 		return layout.Dimensions{}
 	}
-	lines := []layout.FlexChild{
+	children := []layout.FlexChild{
 		layout.Rigid(u.label(13, colDim, font.Bold, strings.ToUpper(s.wallet.Label)).Layout),
-		layout.Rigid(u.label(22, colText, font.Medium, fmt.Sprintf("%.8f", s.wallet.BalanceBtc)).Layout),
-		layout.Rigid(u.label(13, colDim, font.Normal, "BTC").Layout),
+		layout.Rigid(layout.Spacer{Width: 18}.Layout),
+		layout.Rigid(u.label(22, colText, font.Medium, fmt.Sprintf("%.8f BTC", s.wallet.BalanceBtc)).Layout),
 	}
 	if s.btc != nil {
-		lines = append(lines,
-			layout.Rigid(layout.Spacer{Height: 6}.Layout),
-			layout.Rigid(u.label(18, colBTC, font.Medium, "≈ £"+thousands(s.wallet.BalanceBtc*s.btc.Latest)).Layout))
+		children = append(children,
+			layout.Rigid(layout.Spacer{Width: 18}.Layout),
+			layout.Rigid(u.label(22, colBTC, font.Medium, "≈ £"+thousands(s.wallet.BalanceBtc*s.btc.Latest)).Layout))
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, lines...)
+	return layout.Inset{Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Alignment: layout.Baseline}.Layout(gtx, children...)
+	})
 }
 
 // thousands formats a whole-pound amount with comma separators.

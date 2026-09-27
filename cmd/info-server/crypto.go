@@ -14,12 +14,12 @@ type coingeckoResponse struct {
 	Prices [][2]float64 `json:"prices"`
 }
 
-// fetchCryptoWeek fetches 7 days of daily GBP prices for the given CoinGecko
+// fetchCryptoWeek fetches 7 days of hourly GBP prices for the given CoinGecko
 // coin id (e.g. "bitcoin", "ethereum"), labeling the result with symbol
 // (e.g. "BTC", "ETH") for display.
 func fetchCryptoWeek(coinID, symbol string) (*cryptopb.CryptoUpdate, error) {
 	client := http.Client{Timeout: 15 * time.Second}
-	url := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s/market_chart?vs_currency=gbp&days=7&interval=daily", coinID)
+	url := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s/market_chart?vs_currency=gbp&days=7", coinID)
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,9 @@ func fetchCryptoWeek(coinID, symbol string) (*cryptopb.CryptoUpdate, error) {
 	}
 
 	prices := make([]float64, 0, len(cg.Prices))
+	times := make([]int64, 0, len(cg.Prices))
 	for _, p := range cg.Prices {
+		times = append(times, int64(p[0])/1000)
 		prices = append(prices, p[1])
 	}
 
@@ -69,5 +71,6 @@ func fetchCryptoWeek(coinID, symbol string) (*cryptopb.CryptoUpdate, error) {
 		ChangePct:     changePct,
 		Min:           min,
 		Max:           max,
+		TimesUnix:     times,
 	}, nil
 }

@@ -154,32 +154,63 @@ func moonIcon(gtx layout.Context, illum float64, waxing bool, size int) layout.D
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
-// sparkline draws prices (oldest first) as a line with a faint fill below,
-// scaled to fill a w x h box.
-func sparkline(gtx layout.Context, prices []float64, lo, hi float64, c color.NRGBA, w, h int) layout.Dimensions {
-	dims := layout.Dimensions{Size: image.Pt(w, h)}
-	if len(prices) < 2 {
-		return dims
+var planetColours = []color.NRGBA{
+	rgb(0xb0b0b0), // Mercury
+	rgb(0xe8cda2), // Venus
+	rgb(0x5aa9ff), // Earth
+	rgb(0xe5704b), // Mars
+	rgb(0xd9a066), // Jupiter
+	rgb(0xe3c77a), // Saturn
+	rgb(0x8fd3e0), // Uranus
+	rgb(0x6f8cff), // Neptune
+}
+
+func planetColour(i int) color.NRGBA {
+	if i < len(planetColours) {
+		return planetColours[i]
 	}
-	if hi <= lo {
-		hi = lo + 1
+	return colText
+}
+
+// dialSpot is where planetDial put a planet, and the unit vector pointing
+// away from the Sun through it.
+type dialSpot struct {
+	pos, out f32.Point
+}
+
+// planetDial draws the solar system seen from above the north pole in a
+// size x size box: the Sun in the middle and one evenly spaced circular
+// orbit per planet (not to scale), with each planet at its heliocentric
+// longitude (degrees, Mercury first) — the March equinox direction to the
+// right, planets moving anticlockwise. margin is left clear outside the
+// outermost orbit. Earth is drawn a little larger.
+func planetDial(gtx layout.Context, lons []float64, size, margin int) []dialSpot {
+	ops := gtx.Ops
+	c := float32(size) / 2
+	sunR := float32(gtx.Dp(7))
+	inner := sunR * 2.4
+	outer := c - float32(margin)
+	n := len(lons)
+	radius := func(i int) float32 {
+		return inner + (outer-inner)*float32(i)/float32(max(n-1, 1))
 	}
-	stroke := float32(gtx.Dp(2))
-	pad := stroke
-	pts := make([]f32.Point, len(prices))
-	for i, p := range prices {
-		x := float32(i) / float32(len(prices)-1) * float32(w)
-		y := pad + (1-float32((p-lo)/(hi-lo)))*(float32(h)-2*pad)
-		pts[i] = f32.Pt(x, y)
+	for i := range n {
+		strokeLine(ops, rgb(0x2c3139), float32(gtx.Dp(1)), polyArc(c, c, radius(i), 0, 2*math.Pi)...)
 	}
-	area := append([]f32.Point{f32.Pt(0, float32(h))}, pts...)
-	area = append(area, f32.Pt(float32(w), float32(h)))
-	fill := c
-	fill.A = 40
-	fillPolygon(gtx.Ops, fill, area)
-	strokeLine(gtx.Ops, c, stroke, pts...)
-	fillCircle(gtx.Ops, c, pts[len(pts)-1].X, pts[len(pts)-1].Y, stroke*1.6)
-	return dims
+	fillCircle(ops, colSun, c, c, sunR)
+	spots := make([]dialSpot, n)
+	for i, lon := range lons {
+		t := lon * math.Pi / 180
+		dx, dy := float32(math.Cos(t)), -float32(math.Sin(t))
+		r := radius(i)
+		spots[i] = dialSpot{pos: f32.Pt(c+dx*r, c+dy*r), out: f32.Pt(dx, dy)}
+		dot := float32(gtx.Dp(4))
+		if i == 2 {
+			dot = float32(gtx.Dp(5))
+		}
+		fillCircle(ops, planetColour(i), spots[i].pos.X, spots[i].pos.Y, dot)
+	}
+	return spots
 }
 
 // polyArc returns points along a circular arc centred on (cx, cy), from

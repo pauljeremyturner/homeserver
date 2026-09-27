@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package display;
+
+option go_package = "homeserver/gen/display";
+
+service DisplayService {
+  // StreamPage tells displays which page to show, sending the current page
+  // on subscribe and again at every change, so every display switches in
+  // step and the cycle can change without touching the clients.
+  rpc StreamPage(StreamPageRequest) returns (stream PageUpdate);
+}
+
+message StreamPageRequest {}
+
+enum Page {
+  PAGE_UNKNOWN = 0;
+  PAGE_WEATHER = 1; // weather, sun, wind, moon, planets
+  PAGE_MARKETS = 2; // crypto charts, wallet, news
+}
+
+message PageUpdate {
+  Page page = 1;
+  int64 since_unix = 2;
+  // next_unix is when the page will next change, so a client that loses
+  // the stream can keep cycling on its own clock.
+  int64 next_unix = 3;
+  int64 period_seconds = 4;
+}

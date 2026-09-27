@@ -3,6 +3,30 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.4.0 - 2026-09-27
+
+### Added
+- info-gui: two pages under the clock, switching every minute with a fade
+  out and in (the header stays put). Page 1 is the weather: NOW, TOMORROW
+  and MOON, then SUN and WIND, then a SOLAR SYSTEM dial showing the planets
+  (with their initials) on evenly spaced orbits seen from above the north
+  pole. Page 2 is the markets: large BTC and ETH charts with the week's high
+  and low and the days marked, the wallet on one line, and the news ticker.
+- info-server: `PlanetService.StreamPlanets`, the planets' heliocentric
+  positions every hour, computed with JPL's approximate orbital elements
+  (`internal/planets`, tested against JPL Horizons).
+- info-server: `DisplayService.StreamPage`, which page displays should show,
+  switching every `PAGE_SECONDS` (compose: `INFO_PAGE_SECONDS`, default 60)
+  on the minute. info-gui follows it, and keeps cycling on its own clock if
+  the server goes quiet.
+- info-gui: `-page 1|2` to screenshot a given page.
+
+### Changed
+- info-server: crypto prices are now hourly over the 7 days rather than one
+  per day, with their times in the new `times_unix` field.
+- info-gui: the news ticker only runs on the markets page, so the board is
+  mostly idle while the weather page shows.
+
 ## 1.3.2 - 2026-09-27
 
 ### Fixed

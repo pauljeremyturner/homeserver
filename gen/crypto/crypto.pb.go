@@ -61,11 +61,12 @@ type CryptoUpdate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Symbol        string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"` // e.g. "BTC", "ETH"
 	FetchedAtUnix int64                  `protobuf:"varint,2,opt,name=fetched_at_unix,json=fetchedAtUnix,proto3" json:"fetched_at_unix,omitempty"`
-	Prices        []float64              `protobuf:"fixed64,3,rep,packed,name=prices,proto3" json:"prices,omitempty"` // daily closes vs GBP, oldest first
+	Prices        []float64              `protobuf:"fixed64,3,rep,packed,name=prices,proto3" json:"prices,omitempty"` // hourly prices vs GBP over 7 days, oldest first
 	Latest        float64                `protobuf:"fixed64,4,opt,name=latest,proto3" json:"latest,omitempty"`
 	ChangePct     float64                `protobuf:"fixed64,5,opt,name=change_pct,json=changePct,proto3" json:"change_pct,omitempty"` // change over the price series window
 	Min           float64                `protobuf:"fixed64,6,opt,name=min,proto3" json:"min,omitempty"`
 	Max           float64                `protobuf:"fixed64,7,opt,name=max,proto3" json:"max,omitempty"`
+	TimesUnix     []int64                `protobuf:"varint,8,rep,packed,name=times_unix,json=timesUnix,proto3" json:"times_unix,omitempty"` // when each of prices was, same length
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -147,6 +148,13 @@ func (x *CryptoUpdate) GetMax() float64 {
 		return x.Max
 	}
 	return 0
+}
+
+func (x *CryptoUpdate) GetTimesUnix() []int64 {
+	if x != nil {
+		return x.TimesUnix
+	}
+	return nil
 }
 
 type StreamWalletBalanceRequest struct {
@@ -261,7 +269,7 @@ var File_crypto_crypto_proto protoreflect.FileDescriptor
 const file_crypto_crypto_proto_rawDesc = "" +
 	"\n" +
 	"\x13crypto/crypto.proto\x12\x06crypto\"\x15\n" +
-	"\x13StreamCryptoRequest\"\xc1\x01\n" +
+	"\x13StreamCryptoRequest\"\xe0\x01\n" +
 	"\fCryptoUpdate\x12\x16\n" +
 	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12&\n" +
 	"\x0ffetched_at_unix\x18\x02 \x01(\x03R\rfetchedAtUnix\x12\x16\n" +
@@ -270,7 +278,9 @@ const file_crypto_crypto_proto_rawDesc = "" +
 	"\n" +
 	"change_pct\x18\x05 \x01(\x01R\tchangePct\x12\x10\n" +
 	"\x03min\x18\x06 \x01(\x01R\x03min\x12\x10\n" +
-	"\x03max\x18\a \x01(\x01R\x03max\"\x1c\n" +
+	"\x03max\x18\a \x01(\x01R\x03max\x12\x1d\n" +
+	"\n" +
+	"times_unix\x18\b \x03(\x03R\ttimesUnix\"\x1c\n" +
 	"\x1aStreamWalletBalanceRequest\"\x97\x01\n" +
 	"\x13WalletBalanceUpdate\x12\x14\n" +
 	"\x05label\x18\x01 \x01(\tR\x05label\x12&\n" +

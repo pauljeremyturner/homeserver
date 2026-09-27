@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -12,7 +14,9 @@ import (
 	"homeserver/internal/broadcast"
 
 	cryptopb "homeserver/gen/crypto"
+	displaypb "homeserver/gen/display"
 	newspb "homeserver/gen/news"
+	planetspb "homeserver/gen/planets"
 	weatherpb "homeserver/gen/weather"
 )
 
@@ -54,6 +58,10 @@ func main() {
 	addr := envOr("LISTEN_ADDR", ":9090")
 	walletAddr := os.Getenv("WALLET_BTC_ADDRESS")
 	walletLabel := envOr("WALLET_BTC_LABEL", "BTC Wallet")
+	pageSeconds, err := strconv.Atoi(envOr("PAGE_SECONDS", "60"))
+	if err != nil || pageSeconds <= 0 {
+		log.Fatalf("PAGE_SECONDS must be a positive number of seconds, got %q", os.Getenv("PAGE_SECONDS"))
+	}
 
 	weatherBC := broadcast.New[*weatherpb.WeatherUpdate]()
 	newsBC := broadcast.New[*newspb.NewsUpdate]()
@@ -62,9 +70,13 @@ func main() {
 		cryptoBCs[c.symbol] = broadcast.New[*cryptopb.CryptoUpdate]()
 	}
 	walletBC := broadcast.New[*cryptopb.WalletBalanceUpdate]()
+	planetsBC := broadcast.New[*planetspb.PlanetsUpdate]()
+	pageBC := broadcast.New[*displaypb.PageUpdate]()
 
 	go pollWeather(weatherBC)
 	go pollNews(newsBC)
+	go pollPlanets(planetsBC)
+	go cyclePages(pageBC, time.Duration(pageSeconds)*time.Second)
 	for _, c := range trackedCoins {
 		go pollCrypto(c, cryptoBCs[c.symbol])
 	}
@@ -83,6 +95,8 @@ func main() {
 	weatherpb.RegisterWeatherServiceServer(srv, &weatherServer{bc: weatherBC})
 	newspb.RegisterNewsServiceServer(srv, &newsServer{bc: newsBC})
 	cryptopb.RegisterCryptoServiceServer(srv, &cryptoServer{bcs: cryptoBCs, walletBC: walletBC})
+	planetspb.RegisterPlanetServiceServer(srv, &planetServer{bc: planetsBC})
+	displaypb.RegisterDisplayServiceServer(srv, &displayServer{bc: pageBC})
 
 	log.Printf("info-server %s listening on %s", version, addr)
 	if err := srv.Serve(lis); err != nil {
@@ -244,6 +258,26 @@ func (s *cryptoServer) StreamCrypto(_ *cryptopb.StreamCryptoRequest, stream cryp
 	for {
 		select {
 		case v := <-out:
+			if err := stream.Send(v); err != nil {
+				return err
+			}
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
+}
+
+// forward sends everything published on bc to a server stream until the
+// client goes away.
+func forward[T any](bc *broadcast.Broadcaster[T], stream interface {
+	Send(T) error
+	Context() context.Context
+}) error {
+	ch := bc.Subscribe()
+	defer bc.Unsubscribe(ch)
+	for {
+		select {
+		case v := <-ch:
 			if err := stream.Send(v); err != nil {
 				return err
 			}

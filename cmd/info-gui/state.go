@@ -13,7 +13,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	cryptopb "homeserver/gen/crypto"
+	displaypb "homeserver/gen/display"
 	newspb "homeserver/gen/news"
+	planetspb "homeserver/gen/planets"
 	weatherpb "homeserver/gen/weather"
 )
 
@@ -28,6 +30,8 @@ type state struct {
 	news      *newspb.NewsUpdate
 	crypto    map[string]*cryptopb.CryptoUpdate
 	wallet    *cryptopb.WalletBalanceUpdate
+	planets   *planetspb.PlanetsUpdate
+	page      *displaypb.PageUpdate
 	boardTemp float64
 	hasTemp   bool
 	// serverVersion is info-server's build version, from stream headers.
@@ -39,6 +43,8 @@ type snapshot struct {
 	news          *newspb.NewsUpdate
 	btc, eth      *cryptopb.CryptoUpdate
 	wallet        *cryptopb.WalletBalanceUpdate
+	planets       *planetspb.PlanetsUpdate
+	page          *displaypb.PageUpdate
 	boardTemp     float64
 	hasTemp       bool
 	serverVersion string
@@ -63,6 +69,8 @@ func (s *state) snapshot() snapshot {
 		btc:       s.crypto["BTC"],
 		eth:       s.crypto["ETH"],
 		wallet:    s.wallet,
+		planets:   s.planets,
+		page:      s.page,
 		boardTemp: s.boardTemp,
 		hasTemp:   s.hasTemp,
 
@@ -111,6 +119,8 @@ func startStreams(ctx context.Context, addr string, s *state, changed func()) er
 	weatherClient := weatherpb.NewWeatherServiceClient(conn)
 	newsClient := newspb.NewNewsServiceClient(conn)
 	cryptoClient := cryptopb.NewCryptoServiceClient(conn)
+	planetClient := planetspb.NewPlanetServiceClient(conn)
+	displayClient := displaypb.NewDisplayServiceClient(conn)
 
 	go streamLoop(ctx, s, "weather",
 		func(ctx context.Context) (grpc.ServerStreamingClient[weatherpb.WeatherUpdate], error) {
@@ -135,6 +145,18 @@ func startStreams(ctx context.Context, addr string, s *state, changed func()) er
 			return cryptoClient.StreamWalletBalance(ctx, &cryptopb.StreamWalletBalanceRequest{})
 		},
 		func(u *cryptopb.WalletBalanceUpdate) { s.update(func(s *state) { s.wallet = u }); changed() },
+	)
+	go streamLoop(ctx, s, "planets",
+		func(ctx context.Context) (grpc.ServerStreamingClient[planetspb.PlanetsUpdate], error) {
+			return planetClient.StreamPlanets(ctx, &planetspb.StreamPlanetsRequest{})
+		},
+		func(u *planetspb.PlanetsUpdate) { s.update(func(s *state) { s.planets = u }); changed() },
+	)
+	go streamLoop(ctx, s, "page",
+		func(ctx context.Context) (grpc.ServerStreamingClient[displaypb.PageUpdate], error) {
+			return displayClient.StreamPage(ctx, &displaypb.StreamPageRequest{})
+		},
+		func(u *displaypb.PageUpdate) { s.update(func(s *state) { s.page = u }); changed() },
 	)
 	return nil
 }

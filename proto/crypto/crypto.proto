@@ -21,11 +21,12 @@ message StreamCryptoRequest {}
 message CryptoUpdate {
   string symbol = 1; // e.g. "BTC", "ETH"
   int64 fetched_at_unix = 2;
-  repeated double prices = 3; // daily closes vs GBP, oldest first
+  repeated double prices = 3; // hourly prices vs GBP over 7 days, oldest first
   double latest = 4;
   double change_pct = 5; // change over the price series window
   double min = 6;
   double max = 7;
+  repeated int64 times_unix = 8; // when each of prices was, same length
 }
 
 message StreamWalletBalanceRequest {}

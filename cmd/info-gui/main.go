@@ -21,6 +21,8 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
+
+	displaypb "homeserver/gen/display"
 )
 
 // version is set at build time by build.sh (-ldflags "-X main.version=...").
@@ -31,6 +33,7 @@ func main() {
 	demo := flag.Bool("demo", false, "use built-in sample data instead of info-server")
 	shot := flag.String("screenshot", "", "render one 800x480 frame to this PNG and exit")
 	kiosk := flag.Bool("kiosk", false, "full screen with no window decorations (for cage)")
+	page := flag.Int("page", 0, "with -screenshot: render page 1 (weather) or 2 (markets)")
 	at := flag.String("time", "", "with -screenshot: render as if the clock read this HH:MM today")
 	wait := flag.Duration("wait", 4*time.Second, "with -screenshot and live data: how long to wait for the streams first")
 	flag.Parse()
@@ -63,7 +66,7 @@ func main() {
 			}
 			now = time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
 		}
-		if err := screenshot(*shot, s, now); err != nil {
+		if err := screenshot(*shot, s, now, displaypb.Page(*page)); err != nil {
 			log.Fatalf("screenshot: %v", err)
 		}
 		return
@@ -116,7 +119,7 @@ func fitMetric(size image.Point) unit.Metric {
 	return unit.Metric{PxPerDp: scale, PxPerSp: scale}
 }
 
-func screenshot(path string, s *state, now time.Time) error {
+func screenshot(path string, s *state, now time.Time, page displaypb.Page) error {
 	const width, height = designWidth, designHeight
 	win, err := headless.NewWindow(width, height)
 	if err != nil {
@@ -130,7 +133,9 @@ func screenshot(path string, s *state, now time.Time) error {
 		Constraints: layout.Exact(image.Pt(width, height)),
 		Now:         now,
 	}
-	newUI().layout(gtx, gtx.Now, s.snapshot())
+	u := newUI()
+	u.forcePage = page
+	u.layout(gtx, gtx.Now, s.snapshot())
 	if err := win.Frame(&ops); err != nil {
 		return err
 	}

@@ -88,6 +88,8 @@ services:
       # WALLET_BTC_ADDRESS unset to disable it entirely (see .env.example).
       - WALLET_BTC_ADDRESS=${WALLET_BTC_ADDRESS}
       - WALLET_BTC_LABEL=${WALLET_BTC_LABEL}
+      # How long info-gui shows each page (weather, markets) before switching.
+      - PAGE_SECONDS=${INFO_PAGE_SECONDS:-60}
     restart: unless-stopped
 
   portainer:

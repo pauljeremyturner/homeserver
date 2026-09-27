@@ -1,11 +1,14 @@
 package main
 
 import (
+	"math"
 	"time"
 
 	cryptopb "homeserver/gen/crypto"
 	newspb "homeserver/gen/news"
+	planetspb "homeserver/gen/planets"
 	weatherpb "homeserver/gen/weather"
+	"homeserver/internal/planets"
 )
 
 // fillDemo loads sample data (-demo), for working on the layout without an
@@ -37,15 +40,11 @@ func fillDemo(s *state) {
 			TomorrowWindKmph:     "14",
 			TomorrowChanceOfRain: "30",
 		}
-		s.crypto["BTC"] = &cryptopb.CryptoUpdate{
-			Symbol: "BTC", FetchedAtUnix: now,
-			Prices: []float64{83120, 84010, 82650, 85200, 86330, 85710, 87045},
-			Latest: 87045, ChangePct: 4.7, Min: 82650, Max: 87045,
-		}
-		s.crypto["ETH"] = &cryptopb.CryptoUpdate{
-			Symbol: "ETH", FetchedAtUnix: now,
-			Prices: []float64{3310, 3275, 3198, 3240, 3150, 3122, 3168},
-			Latest: 3168, ChangePct: -4.3, Min: 3122, Max: 3310,
+		s.crypto["BTC"] = demoCoin("BTC", now, 83000, 4.7, 1)
+		s.crypto["ETH"] = demoCoin("ETH", now, 3310, -4.3, 2)
+		s.planets = &planetspb.PlanetsUpdate{ComputedAtUnix: now}
+		for _, p := range planets.At(time.Unix(now, 0)) {
+			s.planets.Planets = append(s.planets.Planets, &planetspb.Planet{Name: p.Name, LongitudeDeg: p.Longitude, DistanceAu: p.DistanceAU})
 		}
 		s.wallet = &cryptopb.WalletBalanceUpdate{Label: "BTC Wallet", FetchedAtUnix: now, BalanceBtc: 0.04215, BalanceSats: 4215000}
 		s.news = &newspb.NewsUpdate{FetchedAtUnix: now, Headlines: []string{
@@ -54,4 +53,23 @@ func fillDemo(s *state) {
 			"Storm warning issued for west coast this weekend",
 		}}
 	})
+}
+
+// demoCoin makes a week of hourly prices, starting at start and ending
+// changePct higher, with some made-up wobble.
+func demoCoin(sym string, now int64, start, changePct, seed float64) *cryptopb.CryptoUpdate {
+	const hours = 168
+	c := &cryptopb.CryptoUpdate{Symbol: sym, FetchedAtUnix: now, ChangePct: changePct}
+	for i := 0; i <= hours; i++ {
+		f := float64(i) / hours
+		p := start * (1 + changePct/100*f + 0.02*math.Sin(f*9+seed) + 0.008*math.Sin(f*53*seed))
+		c.Prices = append(c.Prices, p)
+		c.TimesUnix = append(c.TimesUnix, now-int64(hours-i)*3600)
+	}
+	c.Latest = c.Prices[hours]
+	c.Min, c.Max = c.Prices[0], c.Prices[0]
+	for _, p := range c.Prices {
+		c.Min, c.Max = min(c.Min, p), max(c.Max, p)
+	}
+	return c
 }
