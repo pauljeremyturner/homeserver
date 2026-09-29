@@ -19,7 +19,7 @@ service CryptoService {
 message StreamCryptoRequest {}
 
 message CryptoUpdate {
-  string symbol = 1; // e.g. "BTC", "ETH"
+  string symbol = 1; // e.g. "BTC", "ETH", or "XAU"/"XAG" for gold/silver
   int64 fetched_at_unix = 2;
   repeated double prices = 3; // hourly prices vs GBP over 7 days, oldest first
   double latest = 4;

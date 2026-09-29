@@ -9,15 +9,19 @@ import (
 )
 
 func TestPageShowing(t *testing.T) {
-	even := time.Date(2026, 9, 27, 15, 24, 0, 0, time.UTC) // an even minute
-	weather, markets := displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS
+	even := time.Date(2026, 9, 27, 15, 24, 0, 0, time.UTC) // a multiple of 3 periods since the epoch
+	per := defaultPagePeriod
+	weather, markets, metals := displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_METALS
 
-	// With no word from the server, pages cycle each minute on the clock.
-	if p, since, next := pageShowing(even.Add(10*time.Second), nil); p != weather || !since.Equal(even) || !next.Equal(even.Add(time.Minute)) {
-		t.Errorf("no server, even minute: got %v %v %v", p, since, next)
+	// With no word from the server, pages cycle each period on the clock.
+	if p, since, next := pageShowing(even.Add(per/3), nil); p != weather || !since.Equal(even) || !next.Equal(even.Add(defaultPagePeriod)) {
+		t.Errorf("no server, first period: got %v %v %v", p, since, next)
 	}
-	if p, _, _ := pageShowing(even.Add(70*time.Second), nil); p != markets {
-		t.Errorf("no server, odd minute: got %v, want markets", p)
+	if p, _, _ := pageShowing(even.Add(per+per/3), nil); p != markets {
+		t.Errorf("no server, second period: got %v, want markets", p)
+	}
+	if p, _, _ := pageShowing(even.Add(2*per+per/3), nil); p != metals {
+		t.Errorf("no server, third period: got %v, want metals", p)
 	}
 
 	// The server's page wins while it's current, even against the clock.

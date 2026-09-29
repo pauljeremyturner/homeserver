@@ -42,6 +42,8 @@ func fillDemo(s *state) {
 		}
 		s.crypto["BTC"] = demoCoin("BTC", now, 83000, 4.7, 1)
 		s.crypto["ETH"] = demoCoin("ETH", now, 3310, -4.3, 2)
+		s.crypto["XAU"] = demoCoin("XAU", now, 3190, 1.2, 3)
+		s.crypto["XAG"] = demoCoin("XAG", now, 47.9, 2.1, 4)
 		s.planets = &planetspb.PlanetsUpdate{ComputedAtUnix: now}
 		for _, p := range planets.At(time.Unix(now, 0)) {
 			s.planets.Planets = append(s.planets.Planets, &planetspb.Planet{Name: p.Name, LongitudeDeg: p.Longitude, DistanceAu: p.DistanceAU})

@@ -59,7 +59,7 @@ func (*StreamCryptoRequest) Descriptor() ([]byte, []int) {
 
 type CryptoUpdate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Symbol        string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"` // e.g. "BTC", "ETH"
+	Symbol        string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"` // e.g. "BTC", "ETH", or "XAU"/"XAG" for gold/silver
 	FetchedAtUnix int64                  `protobuf:"varint,2,opt,name=fetched_at_unix,json=fetchedAtUnix,proto3" json:"fetched_at_unix,omitempty"`
 	Prices        []float64              `protobuf:"fixed64,3,rep,packed,name=prices,proto3" json:"prices,omitempty"` // hourly prices vs GBP over 7 days, oldest first
 	Latest        float64                `protobuf:"fixed64,4,opt,name=latest,proto3" json:"latest,omitempty"`

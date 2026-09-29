@@ -10,9 +10,9 @@ import (
 const fadeTime = 350 * time.Millisecond
 
 // defaultPagePeriod is used until info-server says otherwise.
-const defaultPagePeriod = 60 * time.Second
+const defaultPagePeriod = 30 * time.Second
 
-var pageCycle = []displaypb.Page{displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS}
+var pageCycle = []displaypb.Page{displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_METALS}
 
 // pageShowing is which page to show at now and the times it started and
 // will end. info-server's PageUpdate is followed while it's current; once

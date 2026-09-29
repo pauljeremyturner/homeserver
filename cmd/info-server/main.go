@@ -34,6 +34,11 @@ type coinConfig struct {
 var trackedCoins = []coinConfig{
 	{"bitcoin", "BTC"},
 	{"ethereum", "ETH"},
+	// Gold and silver, per troy ounce: PAX Gold and Kinesis Silver are
+	// tokens each backed by an ounce of the metal, so they track spot
+	// closely, and CoinGecko has them hourly in GBP like the coins above.
+	{"pax-gold", "XAU"},
+	{"kinesis-silver", "XAG"},
 }
 
 // version is set at build time (-ldflags "-X main.version=...") and sent to
@@ -58,7 +63,7 @@ func main() {
 	addr := envOr("LISTEN_ADDR", ":9090")
 	walletAddr := os.Getenv("WALLET_BTC_ADDRESS")
 	walletLabel := envOr("WALLET_BTC_LABEL", "BTC Wallet")
-	pageSeconds, err := strconv.Atoi(envOr("PAGE_SECONDS", "60"))
+	pageSeconds, err := strconv.Atoi(envOr("PAGE_SECONDS", "30"))
 	if err != nil || pageSeconds <= 0 {
 		log.Fatalf("PAGE_SECONDS must be a positive number of seconds, got %q", os.Getenv("PAGE_SECONDS"))
 	}

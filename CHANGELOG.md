@@ -3,6 +3,22 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.5.0 - 2026-09-29
+
+### Added
+- info-gui: a third page, METALS, with gold (XAU / GBP) and silver
+  (XAG / GBP) charts like the crypto ones, and the news ticker below.
+  Prices under £1,000 at a small scale show pence (e.g. silver at £48.82).
+  `-page 3` screenshots it.
+- info-server: streams gold and silver per troy ounce via CoinGecko's
+  PAX Gold and Kinesis Silver tokens (each backed by an ounce of the metal),
+  as `CryptoUpdate`s with symbols XAU and XAG; `PAGE_METALS` in the page
+  cycle.
+
+### Changed
+- info-server/info-gui: pages cycle weather, markets, metals, each shown for
+  30s by default (was 60s; compose `INFO_PAGE_SECONDS`).
+
 ## 1.4.2 - 2026-09-27
 
 ### Changed

@@ -42,6 +42,7 @@ type snapshot struct {
 	weather       *weatherpb.WeatherUpdate
 	news          *newspb.NewsUpdate
 	btc, eth      *cryptopb.CryptoUpdate
+	xau, xag      *cryptopb.CryptoUpdate
 	wallet        *cryptopb.WalletBalanceUpdate
 	planets       *planetspb.PlanetsUpdate
 	page          *displaypb.PageUpdate
@@ -68,6 +69,8 @@ func (s *state) snapshot() snapshot {
 		news:      s.news,
 		btc:       s.crypto["BTC"],
 		eth:       s.crypto["ETH"],
+		xau:       s.crypto["XAU"],
+		xag:       s.crypto["XAG"],
 		wallet:    s.wallet,
 		planets:   s.planets,
 		page:      s.page,

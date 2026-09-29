@@ -45,6 +45,8 @@ var (
 	colDown      = rgb(0xe5534b)
 	colBTC       = rgb(0xf7931a)
 	colETH       = rgb(0x8c9eff)
+	colGold      = rgb(0xd4af37)
+	colSilver    = rgb(0xc3c9d2)
 	colNewsTag   = rgb(0xe5534b)
 )
 
@@ -110,8 +112,15 @@ func (u *ui) page(gtx layout.Context, now time.Time, s snapshot) layout.Dimensio
 		gtx.Execute(op.InvalidateCmd{At: wake})
 		defer paint.PushOpacity(gtx.Ops, alpha).Pop()
 	}
-	if page == displaypb.Page_PAGE_MARKETS {
-		return u.markets(gtx, now, s)
+	switch page {
+	case displaypb.Page_PAGE_MARKETS:
+		return u.charts(gtx, now, s, true,
+			chartCard{"BTC / GBP", "", s.btc, colBTC},
+			chartCard{"ETH / GBP", "", s.eth, colETH})
+	case displaypb.Page_PAGE_METALS:
+		return u.charts(gtx, now, s, false,
+			chartCard{"XAU / GBP", "gold, via PAXG", s.xau, colGold},
+			chartCard{"XAG / GBP", "silver, via KAG", s.xag, colSilver})
 	}
 	return u.weather(gtx, now, s)
 }
@@ -507,28 +516,49 @@ func (u *ui) solarSystem(gtx layout.Context, p *planetspb.PlanetsUpdate) layout.
 	)
 }
 
-// --- crypto / wallet / news ------------------------------------------------
+// --- markets / metals / news ----------------------------------------------
 
-func (u *ui) markets(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
+// chartCard is one price chart on a charts page.
+type chartCard struct {
+	title, note string // "XAU / GBP", and a faint aside after it
+	c           *cryptopb.CryptoUpdate
+	accent      color.NRGBA
+}
+
+// charts is a page of two price charts side by side with the news below,
+// and the wallet between them if withWallet (the crypto page).
+func (u *ui) charts(gtx layout.Context, now time.Time, s snapshot, withWallet bool, left, right chartCard) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: 14, Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{}.Layout(gtx,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, "BTC", s.btc, colBTC) }),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, left) }),
 					layout.Rigid(layout.Spacer{Width: 24}.Layout),
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, "ETH", s.eth, colETH) }),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, right) }),
 				)
 			})
 		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wallet(gtx, s) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if !withWallet {
+				return layout.Dimensions{}
+			}
+			return u.wallet(gtx, s)
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.ticker(gtx, now, s) }),
 	)
 }
 
-func (u *ui) coin(gtx layout.Context, now time.Time, sym string, c *cryptopb.CryptoUpdate, accent color.NRGBA) layout.Dimensions {
+func (u *ui) coin(gtx layout.Context, now time.Time, card chartCard) layout.Dimensions {
+	c, accent := card.c, card.accent
+	heading := func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Alignment: layout.Baseline}.Layout(gtx,
+			layout.Rigid(u.label(13, accent, font.Bold, card.title).Layout),
+			layout.Rigid(u.label(12, colFaint, font.Normal, "  "+card.note).Layout),
+		)
+	}
 	if c == nil {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(u.label(13, accent, font.Bold, sym+" / GBP").Layout),
+			layout.Rigid(heading),
 			layout.Rigid(u.label(16, colFaint, font.Normal, "waiting...").Layout),
 		)
 	}
@@ -539,7 +569,7 @@ func (u *ui) coin(gtx layout.Context, now time.Time, sym string, c *cryptopb.Cry
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Baseline}.Layout(gtx,
-				layout.Rigid(u.label(13, accent, font.Bold, sym+" / GBP").Layout),
+				layout.Rigid(heading),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					gtx.Constraints.Min.X = gtx.Constraints.Max.X
 					l := u.label(13, changeCol, font.Medium, fmt.Sprintf("%s %.1f%% 7d", arrow, math.Abs(c.ChangePct)))
@@ -548,7 +578,7 @@ func (u *ui) coin(gtx layout.Context, now time.Time, sym string, c *cryptopb.Cry
 				}),
 			)
 		}),
-		layout.Rigid(u.label(30, colText, font.Medium, "£"+thousands(c.Latest)).Layout),
+		layout.Rigid(u.label(30, colText, font.Medium, pounds(c.Latest, c.Latest)).Layout),
 		layout.Rigid(layout.Spacer{Height: 4}.Layout),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.priceChart(gtx, now, c, accent) }),
 	)
@@ -607,7 +637,7 @@ func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpd
 		p := lo + step*float64(k)
 		y := yAt(p)
 		strokeLine(gtx.Ops, colRule, float32(gtx.Dp(1)), f32.Pt(0, y), f32.Pt(w, y))
-		u.labelRight(gtx, size.X, int(y), u.label(12, colDim, font.Normal, "£"+thousands(p)))
+		u.labelRight(gtx, size.X, int(y), u.label(12, colDim, font.Normal, pounds(p, step)))
 	}
 
 	pts := make([]f32.Point, n)
@@ -696,6 +726,16 @@ func (u *ui) wallet(gtx layout.Context, s snapshot) layout.Dimensions {
 	return layout.Inset{Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Baseline}.Layout(gtx, children...)
 	})
+}
+
+// pounds formats a price with a £ sign, in whole pounds with thousands
+// separators unless scale (the price itself, or an axis step) is small
+// enough that pence matter, e.g. silver at £48.82.
+func pounds(v, scale float64) string {
+	if math.Abs(scale) < 100 && math.Abs(v) < 1000 {
+		return fmt.Sprintf("£%.2f", v)
+	}
+	return "£" + thousands(v)
 }
 
 // thousands formats a whole-pound amount with comma separators.

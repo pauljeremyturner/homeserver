@@ -17,6 +17,7 @@ enum Page {
   PAGE_UNKNOWN = 0;
   PAGE_WEATHER = 1; // weather, sun, wind, moon, planets
   PAGE_MARKETS = 2; // crypto charts, wallet, news
+  PAGE_METALS = 3; // gold and silver charts, news
 }
 
 message PageUpdate {
