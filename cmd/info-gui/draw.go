@@ -136,9 +136,14 @@ func weatherIcon(gtx layout.Context, cat weatherpb.Category, night bool, size in
 // the northern hemisphere.
 func moonIcon(gtx layout.Context, illum float64, waxing bool, size int) layout.Dimensions {
 	r := float32(size) / 2
-	fillCircle(gtx.Ops, colMoonDark, r, r, r)
-	drawLitMoon(gtx.Ops, r, r, r, illum, waxing)
+	drawMoon(gtx.Ops, r, r, r, illum, waxing)
 	return layout.Dimensions{Size: image.Pt(size, size)}
+}
+
+// drawMoon draws the moon, dark side and all, centred on (cx, cy).
+func drawMoon(ops *op.Ops, cx, cy, r float32, illum float64, waxing bool) {
+	fillCircle(ops, colMoonDark, cx, cy, r)
+	drawLitMoon(ops, cx, cy, r, illum, waxing)
 }
 
 // drawCrescent draws a waning crescent, lit on the left, the night sky's
@@ -210,14 +215,14 @@ func polyArc(cx, cy, r float32, a0, a1 float64) []f32.Point {
 	return pts
 }
 
-// sunArc draws the sun's course over the day as a semicircle standing on its
-// diameter (the horizon), in a w x h box. frac is how far through the day it
-// is (0 sunrise .. 1 sunset); outside that range the sun is below the
-// horizon and isn't drawn.
-func sunArc(gtx layout.Context, frac float64, w, h int) layout.Dimensions {
+// skyArc draws a body's course across the sky as a semicircle standing on
+// its diameter (the horizon), in a w x h box. frac is how far it is from
+// rising (0) to setting (1); outside that range it's below the horizon and
+// isn't drawn. Where it's been is traced in done, and marker draws the body
+// itself centred on (x, y).
+func skyArc(gtx layout.Context, frac float64, w, h int, done color.NRGBA, marker func(x, y float32)) layout.Dimensions {
 	ops := gtx.Ops
 	stroke := float32(gtx.Dp(2))
-	sunR := float32(gtx.Dp(7))
 	r := float32(w)/2 - stroke
 	cx, cy := float32(w)/2, float32(h)-stroke/2
 	strokeLine(ops, colFaint, stroke, polyArc(cx, cy, r, math.Pi, 2*math.Pi)...)
@@ -227,11 +232,10 @@ func sunArc(gtx layout.Context, frac float64, w, h int) layout.Dimensions {
 	}
 	a := math.Pi * (1 + frac)
 	if frac > 0 {
-		done := colSun
 		done.A = 110
 		strokeLine(ops, done, stroke, polyArc(cx, cy, r, math.Pi, a)...)
 	}
-	drawSun(ops, cx+r*float32(math.Cos(a)), cy+r*float32(math.Sin(a)), sunR)
+	marker(cx+r*float32(math.Cos(a)), cy+r*float32(math.Sin(a)))
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 

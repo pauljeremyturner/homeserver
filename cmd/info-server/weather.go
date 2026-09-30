@@ -10,6 +10,7 @@ import (
 	"time"
 
 	weatherpb "homeserver/gen/weather"
+	"homeserver/internal/moon"
 )
 
 type valueField struct {
@@ -40,8 +41,6 @@ type nearestArea struct {
 type astronomy struct {
 	Sunrise          string `json:"sunrise"`
 	Sunset           string `json:"sunset"`
-	Moonrise         string `json:"moonrise"`
-	Moonset          string `json:"moonset"`
 	MoonPhase        string `json:"moon_phase"`
 	MoonIllumination string `json:"moon_illumination"`
 }
@@ -219,6 +218,15 @@ func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 
 	if len(w.Weather) > 1 && len(w.Weather[1].Astronomy) > 0 {
 		update.TomorrowSunrise = w.Weather[1].Astronomy[0].Sunrise
+	}
+
+	if la, errLa := strconv.ParseFloat(lat, 64); errLa == nil {
+		if lo, errLo := strconv.ParseFloat(lon, 64); errLo == nil {
+			now := time.Now()
+			for _, p := range moon.Passes(la, lo, now, now.Add(48*time.Hour)) {
+				update.MoonPasses = append(update.MoonPasses, &weatherpb.MoonPass{RiseUnix: p.Rise.Unix(), SetUnix: p.Set.Unix()})
+			}
+		}
 	}
 
 	// Without the forecast, wttr.in's current conditions still stand.

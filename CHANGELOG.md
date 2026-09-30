@@ -3,6 +3,19 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.8.0 - 2026-09-30
+
+### Added
+- info-gui: the MOON block has its phase name and how much is lit under
+  the moon, and beside it an arc like the sun's: the Moon, drawn in its
+  phase, crossing from moonrise to moonset, or the next moonrise while
+  it's down.
+- info-server: `moon_passes` on `WeatherUpdate`, the Moon's rise and set
+  times from the pass under way through the next two days, computed at the
+  weather location by `internal/moon` (Astronomical Almanac low-precision
+  formulae; within 3 minutes of the US Naval Observatory in tests,
+  including moonrise-less days and passes over midnight).
+
 ## 1.7.0 - 2026-09-30
 
 ### Added

@@ -228,7 +228,11 @@ type WeatherUpdate struct {
 	Hourly []*HourForecast `protobuf:"bytes,26,rep,name=hourly,proto3" json:"hourly,omitempty"`
 	// daily is the forecast for 7 days, starting today. Empty if the forecast
 	// couldn't be fetched.
-	Daily         []*DayForecast `protobuf:"bytes,27,rep,name=daily,proto3" json:"daily,omitempty"`
+	Daily []*DayForecast `protobuf:"bytes,27,rep,name=daily,proto3" json:"daily,omitempty"`
+	// moon_passes are the Moon's times above the horizon at the location:
+	// the one under way now (if it's up), then each rising in the next two
+	// days. Empty if the location is unknown.
+	MoonPasses    []*MoonPass `protobuf:"bytes,28,rep,name=moon_passes,json=moonPasses,proto3" json:"moon_passes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -410,6 +414,65 @@ func (x *WeatherUpdate) GetDaily() []*DayForecast {
 	return nil
 }
 
+func (x *WeatherUpdate) GetMoonPasses() []*MoonPass {
+	if x != nil {
+		return x.MoonPasses
+	}
+	return nil
+}
+
+type MoonPass struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RiseUnix      int64                  `protobuf:"varint,1,opt,name=rise_unix,json=riseUnix,proto3" json:"rise_unix,omitempty"`
+	SetUnix       int64                  `protobuf:"varint,2,opt,name=set_unix,json=setUnix,proto3" json:"set_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoonPass) Reset() {
+	*x = MoonPass{}
+	mi := &file_weather_weather_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoonPass) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoonPass) ProtoMessage() {}
+
+func (x *MoonPass) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_weather_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoonPass.ProtoReflect.Descriptor instead.
+func (*MoonPass) Descriptor() ([]byte, []int) {
+	return file_weather_weather_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *MoonPass) GetRiseUnix() int64 {
+	if x != nil {
+		return x.RiseUnix
+	}
+	return 0
+}
+
+func (x *MoonPass) GetSetUnix() int64 {
+	if x != nil {
+		return x.SetUnix
+	}
+	return 0
+}
+
 type HourForecast struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// time_unix is the start of the hour.
@@ -425,7 +488,7 @@ type HourForecast struct {
 
 func (x *HourForecast) Reset() {
 	*x = HourForecast{}
-	mi := &file_weather_weather_proto_msgTypes[2]
+	mi := &file_weather_weather_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -437,7 +500,7 @@ func (x *HourForecast) String() string {
 func (*HourForecast) ProtoMessage() {}
 
 func (x *HourForecast) ProtoReflect() protoreflect.Message {
-	mi := &file_weather_weather_proto_msgTypes[2]
+	mi := &file_weather_weather_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -450,7 +513,7 @@ func (x *HourForecast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HourForecast.ProtoReflect.Descriptor instead.
 func (*HourForecast) Descriptor() ([]byte, []int) {
-	return file_weather_weather_proto_rawDescGZIP(), []int{2}
+	return file_weather_weather_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *HourForecast) GetTimeUnix() int64 {
@@ -506,7 +569,7 @@ type DayForecast struct {
 
 func (x *DayForecast) Reset() {
 	*x = DayForecast{}
-	mi := &file_weather_weather_proto_msgTypes[3]
+	mi := &file_weather_weather_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +581,7 @@ func (x *DayForecast) String() string {
 func (*DayForecast) ProtoMessage() {}
 
 func (x *DayForecast) ProtoReflect() protoreflect.Message {
-	mi := &file_weather_weather_proto_msgTypes[3]
+	mi := &file_weather_weather_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +594,7 @@ func (x *DayForecast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DayForecast.ProtoReflect.Descriptor instead.
 func (*DayForecast) Descriptor() ([]byte, []int) {
-	return file_weather_weather_proto_rawDescGZIP(), []int{3}
+	return file_weather_weather_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DayForecast) GetDate() string {
@@ -581,7 +644,7 @@ var File_weather_weather_proto protoreflect.FileDescriptor
 const file_weather_weather_proto_rawDesc = "" +
 	"\n" +
 	"\x15weather/weather.proto\x12\aweather\"\x16\n" +
-	"\x14StreamWeatherRequest\"\xee\x06\n" +
+	"\x14StreamWeatherRequest\"\xa2\a\n" +
 	"\rWeatherUpdate\x12&\n" +
 	"\x0ffetched_at_unix\x18\x01 \x01(\x03R\rfetchedAtUnix\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12!\n" +
@@ -607,7 +670,12 @@ const file_weather_weather_proto_rawDesc = "" +
 	"\btimezone\x18\x18 \x01(\tR\btimezone\x12\x15\n" +
 	"\x06is_day\x18\x19 \x01(\bR\x05isDay\x12-\n" +
 	"\x06hourly\x18\x1a \x03(\v2\x15.weather.HourForecastR\x06hourly\x12*\n" +
-	"\x05daily\x18\x1b \x03(\v2\x14.weather.DayForecastR\x05dailyJ\x04\b\x10\x10\x16R\rtomorrow_descR\x11tomorrow_categoryR\x0etomorrow_max_cR\x0etomorrow_min_cR\x12tomorrow_wind_kmphR\x17tomorrow_chance_of_rain\"\xae\x01\n" +
+	"\x05daily\x18\x1b \x03(\v2\x14.weather.DayForecastR\x05daily\x122\n" +
+	"\vmoon_passes\x18\x1c \x03(\v2\x11.weather.MoonPassR\n" +
+	"moonPassesJ\x04\b\x10\x10\x16R\rtomorrow_descR\x11tomorrow_categoryR\x0etomorrow_max_cR\x0etomorrow_min_cR\x12tomorrow_wind_kmphR\x17tomorrow_chance_of_rain\"B\n" +
+	"\bMoonPass\x12\x1b\n" +
+	"\trise_unix\x18\x01 \x01(\x03R\briseUnix\x12\x19\n" +
+	"\bset_unix\x18\x02 \x01(\x03R\asetUnix\"\xae\x01\n" +
 	"\fHourForecast\x12\x1b\n" +
 	"\ttime_unix\x18\x01 \x01(\x03R\btimeUnix\x12-\n" +
 	"\bcategory\x18\x02 \x01(\x0e2\x11.weather.CategoryR\bcategory\x12\x15\n" +
@@ -657,30 +725,32 @@ func file_weather_weather_proto_rawDescGZIP() []byte {
 }
 
 var file_weather_weather_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_weather_weather_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_weather_weather_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_weather_weather_proto_goTypes = []any{
 	(Category)(0),                // 0: weather.Category
 	(MoonPhase)(0),               // 1: weather.MoonPhase
 	(*StreamWeatherRequest)(nil), // 2: weather.StreamWeatherRequest
 	(*WeatherUpdate)(nil),        // 3: weather.WeatherUpdate
-	(*HourForecast)(nil),         // 4: weather.HourForecast
-	(*DayForecast)(nil),          // 5: weather.DayForecast
+	(*MoonPass)(nil),             // 4: weather.MoonPass
+	(*HourForecast)(nil),         // 5: weather.HourForecast
+	(*DayForecast)(nil),          // 6: weather.DayForecast
 }
 var file_weather_weather_proto_depIdxs = []int32{
 	0, // 0: weather.WeatherUpdate.current_category:type_name -> weather.Category
 	1, // 1: weather.WeatherUpdate.moon_phase:type_name -> weather.MoonPhase
-	4, // 2: weather.WeatherUpdate.hourly:type_name -> weather.HourForecast
-	5, // 3: weather.WeatherUpdate.daily:type_name -> weather.DayForecast
-	0, // 4: weather.HourForecast.category:type_name -> weather.Category
-	0, // 5: weather.DayForecast.day_category:type_name -> weather.Category
-	0, // 6: weather.DayForecast.night_category:type_name -> weather.Category
-	2, // 7: weather.WeatherService.StreamWeather:input_type -> weather.StreamWeatherRequest
-	3, // 8: weather.WeatherService.StreamWeather:output_type -> weather.WeatherUpdate
-	8, // [8:9] is the sub-list for method output_type
-	7, // [7:8] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	5, // 2: weather.WeatherUpdate.hourly:type_name -> weather.HourForecast
+	6, // 3: weather.WeatherUpdate.daily:type_name -> weather.DayForecast
+	4, // 4: weather.WeatherUpdate.moon_passes:type_name -> weather.MoonPass
+	0, // 5: weather.HourForecast.category:type_name -> weather.Category
+	0, // 6: weather.DayForecast.day_category:type_name -> weather.Category
+	0, // 7: weather.DayForecast.night_category:type_name -> weather.Category
+	2, // 8: weather.WeatherService.StreamWeather:input_type -> weather.StreamWeatherRequest
+	3, // 9: weather.WeatherService.StreamWeather:output_type -> weather.WeatherUpdate
+	9, // [9:10] is the sub-list for method output_type
+	8, // [8:9] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_weather_weather_proto_init() }
@@ -694,7 +764,7 @@ func file_weather_weather_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_weather_weather_proto_rawDesc), len(file_weather_weather_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

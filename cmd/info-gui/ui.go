@@ -243,7 +243,7 @@ func (u *ui) weather(gtx layout.Context, now time.Time, s snapshot) layout.Dimen
 						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.today(gtx, w) }),
 							layout.Rigid(layout.Spacer{Height: 26}.Layout),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, w) }),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, now, w) }),
 						)
 					}),
 					layout.Rigid(layout.Spacer{Width: 12}.Layout),
@@ -445,7 +445,9 @@ func (u *ui) hours(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate
 	return layout.Dimensions{Size: image.Pt(width, height)}
 }
 
-func (u *ui) moon(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensions {
+// moon shows the phase, with its name and how much is lit underneath, and
+// beside it the Moon's course across the sky, like the sun's.
+func (u *ui) moon(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) layout.Dimensions {
 	illum, _ := strconv.ParseFloat(strings.TrimSpace(w.MoonIllum), 64)
 	illum /= 100
 	switch w.MoonPhase {
@@ -455,10 +457,81 @@ func (u *ui) moon(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensi
 		illum = 1
 	}
 	waxing := w.MoonPhase <= weatherpb.MoonPhase_MOON_PHASE_FULL_MOON
-	return u.iconBlock(gtx, "MOON",
-		func(gtx layout.Context) layout.Dimensions { return moonIcon(gtx, illum, waxing, gtx.Dp(52)) },
-		u.label(15, colText, font.Normal, moonPhaseLabel(w.MoonPhase)).Layout,
-		u.label(14, colDim, font.Normal, strings.TrimSpace(w.MoonIllum)+"% lit").Layout,
+
+	// The pass the Moon is on, or the next if it's down.
+	frac, riseAt, setAt, next := -1.0, "", "", ""
+	for _, p := range w.MoonPasses {
+		if p.SetUnix <= now.Unix() {
+			continue
+		}
+		rise, set := time.Unix(p.RiseUnix, 0).In(now.Location()), time.Unix(p.SetUnix, 0).In(now.Location())
+		riseAt, setAt = rise.Format("15:04"), set.Format("15:04")
+		if now.Before(rise) {
+			next = "moonrise " + riseAt
+		} else {
+			frac = now.Sub(rise).Seconds() / set.Sub(rise).Seconds()
+			next = "moonset " + setAt
+		}
+		break
+	}
+
+	textW := gtx.Dp(120)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(u.label(13, colDim, font.Medium, "MOON").Layout),
+		layout.Rigid(layout.Spacer{Height: 10}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							size := gtx.Dp(52)
+							defer op.Offset(image.Pt((textW-size)/2, 0)).Push(gtx.Ops).Pop()
+							moonIcon(gtx, illum, waxing, size)
+							return layout.Dimensions{Size: image.Pt(textW, size)}
+						}),
+						layout.Rigid(layout.Spacer{Height: 8}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return u.centred(gtx, textW, u.label(15, colText, font.Normal, moonPhaseLabel(w.MoonPhase)))
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return u.centred(gtx, textW, u.label(14, colDim, font.Normal, strings.TrimSpace(w.MoonIllum)+"% lit"))
+						}),
+					)
+				}),
+				layout.Rigid(layout.Spacer{Width: 28}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if len(w.MoonPasses) == 0 {
+						return layout.Dimensions{}
+					}
+					return u.arcBlock(gtx, frac, riseAt, setAt, next, colMoon, func(x, y float32) {
+						drawMoon(gtx.Ops, x, y, float32(gtx.Dp(8)), illum, waxing)
+					})
+				}),
+			)
+		}),
+	)
+}
+
+// arcBlock is a body's course across the sky (see skyArc) with its rise and
+// set times at the ends of the horizon and a line of text under that.
+func (u *ui) arcBlock(gtx layout.Context, frac float64, rise, set, next string, done color.NRGBA, marker func(x, y float32)) layout.Dimensions {
+	width := gtx.Dp(128)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return skyArc(gtx, frac, width, width/2+gtx.Dp(2), done, marker)
+		}),
+		layout.Rigid(layout.Spacer{Height: 3}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
+			return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
+				layout.Rigid(u.label(13, colDim, font.Normal, rise).Layout),
+				layout.Rigid(u.label(13, colDim, font.Normal, set).Layout),
+			)
+		}),
+		layout.Rigid(layout.Spacer{Height: 4}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return u.centred(gtx, width, u.label(16, colText, font.Normal, next))
+		}),
 	)
 }
 
@@ -507,19 +580,9 @@ func (u *ui) sun(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) 
 		}),
 		layout.Rigid(layout.Spacer{Height: 14}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return sunArc(gtx, frac, width, width/2+gtx.Dp(2))
-		}),
-		layout.Rigid(layout.Spacer{Height: 3}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-			return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
-				layout.Rigid(u.label(13, colDim, font.Normal, clockTime(w.TodaySunrise)).Layout),
-				layout.Rigid(u.label(13, colDim, font.Normal, clockTime(w.TodaySunset)).Layout),
-			)
-		}),
-		layout.Rigid(layout.Spacer{Height: 4}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return u.centred(gtx, width, u.label(16, colText, font.Normal, next))
+			return u.arcBlock(gtx, frac, clockTime(w.TodaySunrise), clockTime(w.TodaySunset), next, colSun, func(x, y float32) {
+				drawSun(gtx.Ops, x, y, float32(gtx.Dp(7)))
+			})
 		}),
 	)
 }

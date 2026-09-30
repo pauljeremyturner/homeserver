@@ -86,6 +86,15 @@ message WeatherUpdate {
   // daily is the forecast for 7 days, starting today. Empty if the forecast
   // couldn't be fetched.
   repeated DayForecast daily = 27;
+  // moon_passes are the Moon's times above the horizon at the location:
+  // the one under way now (if it's up), then each rising in the next two
+  // days. Empty if the location is unknown.
+  repeated MoonPass moon_passes = 28;
+}
+
+message MoonPass {
+  int64 rise_unix = 1;
+  int64 set_unix = 2;
 }
 
 message HourForecast {

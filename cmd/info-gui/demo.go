@@ -37,6 +37,10 @@ func fillDemo(s *state) {
 			IsDay:           true,
 			Hourly:          demoHours(now),
 			Daily:           demoDays(now),
+			MoonPasses: []*weatherpb.MoonPass{
+				{RiseUnix: now - 4*3600, SetUnix: now + 8*3600},
+				{RiseUnix: now + 20*3600, SetUnix: now + 33*3600},
+			},
 		}
 		s.crypto["BTC"] = demoCoin("BTC", now, 83000, 4.7, 1)
 		s.crypto["ETH"] = demoCoin("ETH", now, 3310, -4.3, 2)
