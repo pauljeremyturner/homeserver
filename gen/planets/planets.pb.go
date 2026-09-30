@@ -61,9 +61,17 @@ type PlanetsUpdate struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	ComputedAtUnix int64                  `protobuf:"varint,1,opt,name=computed_at_unix,json=computedAtUnix,proto3" json:"computed_at_unix,omitempty"`
 	// The eight planets, Mercury first.
-	Planets       []*Planet `protobuf:"bytes,2,rep,name=planets,proto3" json:"planets,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Planets []*Planet `protobuf:"bytes,2,rep,name=planets,proto3" json:"planets,omitempty"`
+	// orbits are the planets' orbits at computed_at, Mercury first, each a
+	// closed loop of points starting at perihelion.
+	Orbits []*Path `protobuf:"bytes,3,rep,name=orbits,proto3" json:"orbits,omitempty"`
+	// history is each planet's positions, Mercury first, one every
+	// history_step_seconds from history_start_unix; the last is computed_at.
+	HistoryStartUnix   int64   `protobuf:"varint,4,opt,name=history_start_unix,json=historyStartUnix,proto3" json:"history_start_unix,omitempty"`
+	HistoryStepSeconds int64   `protobuf:"varint,5,opt,name=history_step_seconds,json=historyStepSeconds,proto3" json:"history_step_seconds,omitempty"`
+	History            []*Path `protobuf:"bytes,6,rep,name=history,proto3" json:"history,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *PlanetsUpdate) Reset() {
@@ -110,20 +118,106 @@ func (x *PlanetsUpdate) GetPlanets() []*Planet {
 	return nil
 }
 
+func (x *PlanetsUpdate) GetOrbits() []*Path {
+	if x != nil {
+		return x.Orbits
+	}
+	return nil
+}
+
+func (x *PlanetsUpdate) GetHistoryStartUnix() int64 {
+	if x != nil {
+		return x.HistoryStartUnix
+	}
+	return 0
+}
+
+func (x *PlanetsUpdate) GetHistoryStepSeconds() int64 {
+	if x != nil {
+		return x.HistoryStepSeconds
+	}
+	return 0
+}
+
+func (x *PlanetsUpdate) GetHistory() []*Path {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+// Path is a series of points in the ecliptic plane, in AU from the Sun: x
+// towards the March equinox, y 90 degrees anticlockwise from it seen from
+// the north.
+type Path struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	XAu           []float32              `protobuf:"fixed32,1,rep,packed,name=x_au,json=xAu,proto3" json:"x_au,omitempty"`
+	YAu           []float32              `protobuf:"fixed32,2,rep,packed,name=y_au,json=yAu,proto3" json:"y_au,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Path) Reset() {
+	*x = Path{}
+	mi := &file_planets_planets_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Path) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Path) ProtoMessage() {}
+
+func (x *Path) ProtoReflect() protoreflect.Message {
+	mi := &file_planets_planets_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Path.ProtoReflect.Descriptor instead.
+func (*Path) Descriptor() ([]byte, []int) {
+	return file_planets_planets_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Path) GetXAu() []float32 {
+	if x != nil {
+		return x.XAu
+	}
+	return nil
+}
+
+func (x *Path) GetYAu() []float32 {
+	if x != nil {
+		return x.YAu
+	}
+	return nil
+}
+
 type Planet struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Heliocentric ecliptic longitude (J2000), degrees in [0, 360), measured
 	// anticlockwise seen from the north from the March equinox direction.
-	LongitudeDeg  float64 `protobuf:"fixed64,2,opt,name=longitude_deg,json=longitudeDeg,proto3" json:"longitude_deg,omitempty"`
-	DistanceAu    float64 `protobuf:"fixed64,3,opt,name=distance_au,json=distanceAu,proto3" json:"distance_au,omitempty"`
+	LongitudeDeg float64 `protobuf:"fixed64,2,opt,name=longitude_deg,json=longitudeDeg,proto3" json:"longitude_deg,omitempty"`
+	DistanceAu   float64 `protobuf:"fixed64,3,opt,name=distance_au,json=distanceAu,proto3" json:"distance_au,omitempty"`
+	// x_au and y_au place it as in Path.
+	XAu           float64 `protobuf:"fixed64,4,opt,name=x_au,json=xAu,proto3" json:"x_au,omitempty"`
+	YAu           float64 `protobuf:"fixed64,5,opt,name=y_au,json=yAu,proto3" json:"y_au,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Planet) Reset() {
 	*x = Planet{}
-	mi := &file_planets_planets_proto_msgTypes[2]
+	mi := &file_planets_planets_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -135,7 +229,7 @@ func (x *Planet) String() string {
 func (*Planet) ProtoMessage() {}
 
 func (x *Planet) ProtoReflect() protoreflect.Message {
-	mi := &file_planets_planets_proto_msgTypes[2]
+	mi := &file_planets_planets_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -148,7 +242,7 @@ func (x *Planet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Planet.ProtoReflect.Descriptor instead.
 func (*Planet) Descriptor() ([]byte, []int) {
-	return file_planets_planets_proto_rawDescGZIP(), []int{2}
+	return file_planets_planets_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Planet) GetName() string {
@@ -172,20 +266,43 @@ func (x *Planet) GetDistanceAu() float64 {
 	return 0
 }
 
+func (x *Planet) GetXAu() float64 {
+	if x != nil {
+		return x.XAu
+	}
+	return 0
+}
+
+func (x *Planet) GetYAu() float64 {
+	if x != nil {
+		return x.YAu
+	}
+	return 0
+}
+
 var File_planets_planets_proto protoreflect.FileDescriptor
 
 const file_planets_planets_proto_rawDesc = "" +
 	"\n" +
 	"\x15planets/planets.proto\x12\aplanets\"\x16\n" +
-	"\x14StreamPlanetsRequest\"d\n" +
+	"\x14StreamPlanetsRequest\"\x94\x02\n" +
 	"\rPlanetsUpdate\x12(\n" +
 	"\x10computed_at_unix\x18\x01 \x01(\x03R\x0ecomputedAtUnix\x12)\n" +
-	"\aplanets\x18\x02 \x03(\v2\x0f.planets.PlanetR\aplanets\"b\n" +
+	"\aplanets\x18\x02 \x03(\v2\x0f.planets.PlanetR\aplanets\x12%\n" +
+	"\x06orbits\x18\x03 \x03(\v2\r.planets.PathR\x06orbits\x12,\n" +
+	"\x12history_start_unix\x18\x04 \x01(\x03R\x10historyStartUnix\x120\n" +
+	"\x14history_step_seconds\x18\x05 \x01(\x03R\x12historyStepSeconds\x12'\n" +
+	"\ahistory\x18\x06 \x03(\v2\r.planets.PathR\ahistory\",\n" +
+	"\x04Path\x12\x11\n" +
+	"\x04x_au\x18\x01 \x03(\x02R\x03xAu\x12\x11\n" +
+	"\x04y_au\x18\x02 \x03(\x02R\x03yAu\"\x88\x01\n" +
 	"\x06Planet\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12#\n" +
 	"\rlongitude_deg\x18\x02 \x01(\x01R\flongitudeDeg\x12\x1f\n" +
 	"\vdistance_au\x18\x03 \x01(\x01R\n" +
-	"distanceAu2Y\n" +
+	"distanceAu\x12\x11\n" +
+	"\x04x_au\x18\x04 \x01(\x01R\x03xAu\x12\x11\n" +
+	"\x04y_au\x18\x05 \x01(\x01R\x03yAu2Y\n" +
 	"\rPlanetService\x12H\n" +
 	"\rStreamPlanets\x12\x1d.planets.StreamPlanetsRequest\x1a\x16.planets.PlanetsUpdate0\x01B\x18Z\x16homeserver/gen/planetsb\x06proto3"
 
@@ -201,21 +318,24 @@ func file_planets_planets_proto_rawDescGZIP() []byte {
 	return file_planets_planets_proto_rawDescData
 }
 
-var file_planets_planets_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_planets_planets_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_planets_planets_proto_goTypes = []any{
 	(*StreamPlanetsRequest)(nil), // 0: planets.StreamPlanetsRequest
 	(*PlanetsUpdate)(nil),        // 1: planets.PlanetsUpdate
-	(*Planet)(nil),               // 2: planets.Planet
+	(*Path)(nil),                 // 2: planets.Path
+	(*Planet)(nil),               // 3: planets.Planet
 }
 var file_planets_planets_proto_depIdxs = []int32{
-	2, // 0: planets.PlanetsUpdate.planets:type_name -> planets.Planet
-	0, // 1: planets.PlanetService.StreamPlanets:input_type -> planets.StreamPlanetsRequest
-	1, // 2: planets.PlanetService.StreamPlanets:output_type -> planets.PlanetsUpdate
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3, // 0: planets.PlanetsUpdate.planets:type_name -> planets.Planet
+	2, // 1: planets.PlanetsUpdate.orbits:type_name -> planets.Path
+	2, // 2: planets.PlanetsUpdate.history:type_name -> planets.Path
+	0, // 3: planets.PlanetService.StreamPlanets:input_type -> planets.StreamPlanetsRequest
+	1, // 4: planets.PlanetService.StreamPlanets:output_type -> planets.PlanetsUpdate
+	4, // [4:5] is the sub-list for method output_type
+	3, // [3:4] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_planets_planets_proto_init() }
@@ -229,7 +349,7 @@ func file_planets_planets_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_planets_planets_proto_rawDesc), len(file_planets_planets_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

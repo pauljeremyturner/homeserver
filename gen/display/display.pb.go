@@ -25,9 +25,12 @@ type Page int32
 
 const (
 	Page_PAGE_UNKNOWN Page = 0
-	Page_PAGE_WEATHER Page = 1 // weather, sun, wind, moon, planets
-	Page_PAGE_MARKETS Page = 2 // crypto charts, wallet, news
-	Page_PAGE_METALS  Page = 3 // gold and silver charts, news
+	Page_PAGE_WEATHER Page = 1 // weather, sun, wind, moon, forecasts
+	Page_PAGE_MARKETS Page = 2 // crypto and metals charts, wallet, news
+	// PAGE_METALS was a page of its own for gold and silver, now on
+	// PAGE_MARKETS; no longer sent.
+	Page_PAGE_METALS  Page = 3
+	Page_PAGE_PLANETS Page = 4 // the planets over the last years, then today
 )
 
 // Enum value maps for Page.
@@ -37,12 +40,14 @@ var (
 		1: "PAGE_WEATHER",
 		2: "PAGE_MARKETS",
 		3: "PAGE_METALS",
+		4: "PAGE_PLANETS",
 	}
 	Page_value = map[string]int32{
 		"PAGE_UNKNOWN": 0,
 		"PAGE_WEATHER": 1,
 		"PAGE_MARKETS": 2,
 		"PAGE_METALS":  3,
+		"PAGE_PLANETS": 4,
 	}
 )
 
@@ -191,12 +196,13 @@ const file_display_display_proto_rawDesc = "" +
 	"\n" +
 	"since_unix\x18\x02 \x01(\x03R\tsinceUnix\x12\x1b\n" +
 	"\tnext_unix\x18\x03 \x01(\x03R\bnextUnix\x12%\n" +
-	"\x0eperiod_seconds\x18\x04 \x01(\x03R\rperiodSeconds*M\n" +
+	"\x0eperiod_seconds\x18\x04 \x01(\x03R\rperiodSeconds*_\n" +
 	"\x04Page\x12\x10\n" +
 	"\fPAGE_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fPAGE_WEATHER\x10\x01\x12\x10\n" +
 	"\fPAGE_MARKETS\x10\x02\x12\x0f\n" +
-	"\vPAGE_METALS\x10\x032Q\n" +
+	"\vPAGE_METALS\x10\x03\x12\x10\n" +
+	"\fPAGE_PLANETS\x10\x042Q\n" +
 	"\x0eDisplayService\x12?\n" +
 	"\n" +
 	"StreamPage\x12\x1a.display.StreamPageRequest\x1a\x13.display.PageUpdate0\x01B\x18Z\x16homeserver/gen/displayb\x06proto3"

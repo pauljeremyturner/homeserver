@@ -15,9 +15,12 @@ message StreamPageRequest {}
 
 enum Page {
   PAGE_UNKNOWN = 0;
-  PAGE_WEATHER = 1; // weather, sun, wind, moon, planets
-  PAGE_MARKETS = 2; // crypto charts, wallet, news
-  PAGE_METALS = 3; // gold and silver charts, news
+  PAGE_WEATHER = 1; // weather, sun, wind, moon, forecasts
+  PAGE_MARKETS = 2; // crypto and metals charts, wallet, news
+  // PAGE_METALS was a page of its own for gold and silver, now on
+  // PAGE_MARKETS; no longer sent.
+  PAGE_METALS = 3;
+  PAGE_PLANETS = 4; // the planets over the last years, then today
 }
 
 message PageUpdate {

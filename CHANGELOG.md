@@ -3,6 +3,48 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.6.0 - 2026-09-30
+
+### Added
+- info-gui: the weather page has a THIS WEEK list (7 days: chance of rain,
+  day and night icons, low and high on a bar across the week's range, with
+  the current temperature marked on today's) and a NEXT 12 HOURS strip
+  along the bottom (time, icon, temperature on a line, chance of rain).
+  Clear and partly cloudy skies get a crescent moon at night. NOW is bigger
+  and shows the UV index.
+- info-server: `hourly` (next 24 hours) and `daily` (7 days) forecasts and
+  `is_day` on `WeatherUpdate`, from Open-Meteo (free, no key) at wttr.in's
+  coordinates. Current conditions come from Open-Meteo too, so they agree
+  with the forecast, falling back to wttr.in's if Open-Meteo fails.
+- info-gui: a PLANETS page: the inner (Mercury to Mars) and outer (Jupiter
+  to Neptune) planets side by side, each to true scale with their real
+  elliptical orbits, animating through the last 20 years (easing in and
+  out, with the year and date) over two thirds of the page's time, then
+  holding on today. Inner planets trail their last two months; outer
+  planets trail everywhere they've been. `-page 4 -anim 20s` screenshots it
+  part way through.
+- info-server: `PlanetsUpdate` carries each planet's x/y, its orbit's
+  shape, and its history: ~1800 positions evenly spread over
+  `PLANETS_YEARS` (compose `INFO_PLANETS_YEARS`, default 20) up to now.
+  `internal/planets` gains `Orbits` and `History`.
+
+### Changed
+- info-server/info-gui: pages cycle weather, markets, planets, a minute
+  each by default (was 30s).
+- info-gui: designed for a 1024x600 screen, drawn 1:1 there (was 800x480
+  scaled to fit).
+- info-gui: the solar system dial is off the weather page, replaced by the
+  PLANETS page.
+- info-gui/info-server: the METALS page is merged into MARKETS, which now
+  has four charts (BTC and ETH above, gold and silver below) with the
+  wallet and news under them. `-page 3` is gone, and a `PAGE_METALS` from
+  an older server shows the markets page.
+
+### Removed
+- info-server: the `tomorrow_*` fields of `WeatherUpdate` (except
+  `tomorrow_sunrise`); `daily[1]` replaces them. info-client's tomorrow
+  line uses it.
+
 ## 1.5.0 - 2026-09-29
 
 ### Added

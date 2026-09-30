@@ -2,7 +2,7 @@
 # Builds/renders info-gui inside the Dockerfile.build container.
 #   ./build.sh amd64             -> bin/info-gui-amd64 (run locally under Wayland)
 #   ./build.sh arm               -> bin/info-gui-arm   (Tinker Board, armv7l)
-#   ./build.sh shot [args...]    -> renders one 800x480 frame to bin/shot.png
+#   ./build.sh shot [args...]    -> renders one 1024x600 frame to bin/shot.png
 #                                   (extra args go to info-gui, e.g. -demo)
 set -euo pipefail
 cd "$(dirname "$0")/../.."

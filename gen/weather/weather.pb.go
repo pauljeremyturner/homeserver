@@ -195,28 +195,22 @@ func (*StreamWeatherRequest) Descriptor() ([]byte, []int) {
 }
 
 type WeatherUpdate struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	FetchedAtUnix        int64                  `protobuf:"varint,1,opt,name=fetched_at_unix,json=fetchedAtUnix,proto3" json:"fetched_at_unix,omitempty"`
-	Location             string                 `protobuf:"bytes,2,opt,name=location,proto3" json:"location,omitempty"`
-	CurrentDesc          string                 `protobuf:"bytes,3,opt,name=current_desc,json=currentDesc,proto3" json:"current_desc,omitempty"`
-	CurrentCategory      Category               `protobuf:"varint,4,opt,name=current_category,json=currentCategory,proto3,enum=weather.Category" json:"current_category,omitempty"`
-	TempC                string                 `protobuf:"bytes,5,opt,name=temp_c,json=tempC,proto3" json:"temp_c,omitempty"`
-	FeelsLikeC           string                 `protobuf:"bytes,6,opt,name=feels_like_c,json=feelsLikeC,proto3" json:"feels_like_c,omitempty"`
-	Humidity             string                 `protobuf:"bytes,7,opt,name=humidity,proto3" json:"humidity,omitempty"`
-	WindKmph             string                 `protobuf:"bytes,8,opt,name=wind_kmph,json=windKmph,proto3" json:"wind_kmph,omitempty"`
-	WindDir              string                 `protobuf:"bytes,9,opt,name=wind_dir,json=windDir,proto3" json:"wind_dir,omitempty"`
-	UvIndex              string                 `protobuf:"bytes,10,opt,name=uv_index,json=uvIndex,proto3" json:"uv_index,omitempty"`
-	VisibilityKm         string                 `protobuf:"bytes,11,opt,name=visibility_km,json=visibilityKm,proto3" json:"visibility_km,omitempty"`
-	TodaySunrise         string                 `protobuf:"bytes,12,opt,name=today_sunrise,json=todaySunrise,proto3" json:"today_sunrise,omitempty"`
-	TodaySunset          string                 `protobuf:"bytes,13,opt,name=today_sunset,json=todaySunset,proto3" json:"today_sunset,omitempty"`
-	MoonPhase            MoonPhase              `protobuf:"varint,14,opt,name=moon_phase,json=moonPhase,proto3,enum=weather.MoonPhase" json:"moon_phase,omitempty"`
-	MoonIllum            string                 `protobuf:"bytes,15,opt,name=moon_illum,json=moonIllum,proto3" json:"moon_illum,omitempty"`
-	TomorrowDesc         string                 `protobuf:"bytes,16,opt,name=tomorrow_desc,json=tomorrowDesc,proto3" json:"tomorrow_desc,omitempty"`
-	TomorrowCategory     Category               `protobuf:"varint,17,opt,name=tomorrow_category,json=tomorrowCategory,proto3,enum=weather.Category" json:"tomorrow_category,omitempty"`
-	TomorrowMaxC         string                 `protobuf:"bytes,18,opt,name=tomorrow_max_c,json=tomorrowMaxC,proto3" json:"tomorrow_max_c,omitempty"`
-	TomorrowMinC         string                 `protobuf:"bytes,19,opt,name=tomorrow_min_c,json=tomorrowMinC,proto3" json:"tomorrow_min_c,omitempty"`
-	TomorrowWindKmph     string                 `protobuf:"bytes,20,opt,name=tomorrow_wind_kmph,json=tomorrowWindKmph,proto3" json:"tomorrow_wind_kmph,omitempty"`
-	TomorrowChanceOfRain string                 `protobuf:"bytes,21,opt,name=tomorrow_chance_of_rain,json=tomorrowChanceOfRain,proto3" json:"tomorrow_chance_of_rain,omitempty"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	FetchedAtUnix   int64                  `protobuf:"varint,1,opt,name=fetched_at_unix,json=fetchedAtUnix,proto3" json:"fetched_at_unix,omitempty"`
+	Location        string                 `protobuf:"bytes,2,opt,name=location,proto3" json:"location,omitempty"`
+	CurrentDesc     string                 `protobuf:"bytes,3,opt,name=current_desc,json=currentDesc,proto3" json:"current_desc,omitempty"`
+	CurrentCategory Category               `protobuf:"varint,4,opt,name=current_category,json=currentCategory,proto3,enum=weather.Category" json:"current_category,omitempty"`
+	TempC           string                 `protobuf:"bytes,5,opt,name=temp_c,json=tempC,proto3" json:"temp_c,omitempty"`
+	FeelsLikeC      string                 `protobuf:"bytes,6,opt,name=feels_like_c,json=feelsLikeC,proto3" json:"feels_like_c,omitempty"`
+	Humidity        string                 `protobuf:"bytes,7,opt,name=humidity,proto3" json:"humidity,omitempty"`
+	WindKmph        string                 `protobuf:"bytes,8,opt,name=wind_kmph,json=windKmph,proto3" json:"wind_kmph,omitempty"`
+	WindDir         string                 `protobuf:"bytes,9,opt,name=wind_dir,json=windDir,proto3" json:"wind_dir,omitempty"`
+	UvIndex         string                 `protobuf:"bytes,10,opt,name=uv_index,json=uvIndex,proto3" json:"uv_index,omitempty"`
+	VisibilityKm    string                 `protobuf:"bytes,11,opt,name=visibility_km,json=visibilityKm,proto3" json:"visibility_km,omitempty"`
+	TodaySunrise    string                 `protobuf:"bytes,12,opt,name=today_sunrise,json=todaySunrise,proto3" json:"today_sunrise,omitempty"`
+	TodaySunset     string                 `protobuf:"bytes,13,opt,name=today_sunset,json=todaySunset,proto3" json:"today_sunset,omitempty"`
+	MoonPhase       MoonPhase              `protobuf:"varint,14,opt,name=moon_phase,json=moonPhase,proto3,enum=weather.MoonPhase" json:"moon_phase,omitempty"`
+	MoonIllum       string                 `protobuf:"bytes,15,opt,name=moon_illum,json=moonIllum,proto3" json:"moon_illum,omitempty"`
 	// wind_beaufort is the Beaufort scale name for wind_kmph ("Light breeze"),
 	// empty if the speed couldn't be parsed.
 	WindBeaufort string `protobuf:"bytes,22,opt,name=wind_beaufort,json=windBeaufort,proto3" json:"wind_beaufort,omitempty"`
@@ -226,7 +220,15 @@ type WeatherUpdate struct {
 	// timezone is the IANA name ("Europe/London") for the weather location,
 	// so clients can show its local time whatever their own clock is set to.
 	// Empty if it couldn't be looked up.
-	Timezone      string `protobuf:"bytes,24,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	Timezone string `protobuf:"bytes,24,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	// is_day says whether it's daytime now, for a day or night icon.
+	IsDay bool `protobuf:"varint,25,opt,name=is_day,json=isDay,proto3" json:"is_day,omitempty"`
+	// hourly is the forecast for the next 24 hours, starting with the current
+	// hour. Empty if the forecast couldn't be fetched.
+	Hourly []*HourForecast `protobuf:"bytes,26,rep,name=hourly,proto3" json:"hourly,omitempty"`
+	// daily is the forecast for 7 days, starting today. Empty if the forecast
+	// couldn't be fetched.
+	Daily         []*DayForecast `protobuf:"bytes,27,rep,name=daily,proto3" json:"daily,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -366,48 +368,6 @@ func (x *WeatherUpdate) GetMoonIllum() string {
 	return ""
 }
 
-func (x *WeatherUpdate) GetTomorrowDesc() string {
-	if x != nil {
-		return x.TomorrowDesc
-	}
-	return ""
-}
-
-func (x *WeatherUpdate) GetTomorrowCategory() Category {
-	if x != nil {
-		return x.TomorrowCategory
-	}
-	return Category_CATEGORY_UNKNOWN
-}
-
-func (x *WeatherUpdate) GetTomorrowMaxC() string {
-	if x != nil {
-		return x.TomorrowMaxC
-	}
-	return ""
-}
-
-func (x *WeatherUpdate) GetTomorrowMinC() string {
-	if x != nil {
-		return x.TomorrowMinC
-	}
-	return ""
-}
-
-func (x *WeatherUpdate) GetTomorrowWindKmph() string {
-	if x != nil {
-		return x.TomorrowWindKmph
-	}
-	return ""
-}
-
-func (x *WeatherUpdate) GetTomorrowChanceOfRain() string {
-	if x != nil {
-		return x.TomorrowChanceOfRain
-	}
-	return ""
-}
-
 func (x *WeatherUpdate) GetWindBeaufort() string {
 	if x != nil {
 		return x.WindBeaufort
@@ -429,12 +389,199 @@ func (x *WeatherUpdate) GetTimezone() string {
 	return ""
 }
 
+func (x *WeatherUpdate) GetIsDay() bool {
+	if x != nil {
+		return x.IsDay
+	}
+	return false
+}
+
+func (x *WeatherUpdate) GetHourly() []*HourForecast {
+	if x != nil {
+		return x.Hourly
+	}
+	return nil
+}
+
+func (x *WeatherUpdate) GetDaily() []*DayForecast {
+	if x != nil {
+		return x.Daily
+	}
+	return nil
+}
+
+type HourForecast struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// time_unix is the start of the hour.
+	TimeUnix int64    `protobuf:"varint,1,opt,name=time_unix,json=timeUnix,proto3" json:"time_unix,omitempty"`
+	Category Category `protobuf:"varint,2,opt,name=category,proto3,enum=weather.Category" json:"category,omitempty"`
+	IsDay    bool     `protobuf:"varint,3,opt,name=is_day,json=isDay,proto3" json:"is_day,omitempty"`
+	TempC    int32    `protobuf:"varint,4,opt,name=temp_c,json=tempC,proto3" json:"temp_c,omitempty"`
+	// chance_of_rain is the probability of precipitation, 0-100.
+	ChanceOfRain  int32 `protobuf:"varint,5,opt,name=chance_of_rain,json=chanceOfRain,proto3" json:"chance_of_rain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HourForecast) Reset() {
+	*x = HourForecast{}
+	mi := &file_weather_weather_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HourForecast) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HourForecast) ProtoMessage() {}
+
+func (x *HourForecast) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_weather_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HourForecast.ProtoReflect.Descriptor instead.
+func (*HourForecast) Descriptor() ([]byte, []int) {
+	return file_weather_weather_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *HourForecast) GetTimeUnix() int64 {
+	if x != nil {
+		return x.TimeUnix
+	}
+	return 0
+}
+
+func (x *HourForecast) GetCategory() Category {
+	if x != nil {
+		return x.Category
+	}
+	return Category_CATEGORY_UNKNOWN
+}
+
+func (x *HourForecast) GetIsDay() bool {
+	if x != nil {
+		return x.IsDay
+	}
+	return false
+}
+
+func (x *HourForecast) GetTempC() int32 {
+	if x != nil {
+		return x.TempC
+	}
+	return 0
+}
+
+func (x *HourForecast) GetChanceOfRain() int32 {
+	if x != nil {
+		return x.ChanceOfRain
+	}
+	return 0
+}
+
+type DayForecast struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// date is the local date at the weather location, "2006-01-02".
+	Date string `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	// day_category is the worst weather from 06:00 to 18:00, night_category
+	// the worst from 18:00 to 06:00 the next morning.
+	DayCategory   Category `protobuf:"varint,2,opt,name=day_category,json=dayCategory,proto3,enum=weather.Category" json:"day_category,omitempty"`
+	NightCategory Category `protobuf:"varint,3,opt,name=night_category,json=nightCategory,proto3,enum=weather.Category" json:"night_category,omitempty"`
+	MaxC          int32    `protobuf:"varint,4,opt,name=max_c,json=maxC,proto3" json:"max_c,omitempty"`
+	MinC          int32    `protobuf:"varint,5,opt,name=min_c,json=minC,proto3" json:"min_c,omitempty"`
+	// chance_of_rain is the day's highest hourly probability of precipitation.
+	ChanceOfRain  int32 `protobuf:"varint,6,opt,name=chance_of_rain,json=chanceOfRain,proto3" json:"chance_of_rain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DayForecast) Reset() {
+	*x = DayForecast{}
+	mi := &file_weather_weather_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DayForecast) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DayForecast) ProtoMessage() {}
+
+func (x *DayForecast) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_weather_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DayForecast.ProtoReflect.Descriptor instead.
+func (*DayForecast) Descriptor() ([]byte, []int) {
+	return file_weather_weather_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DayForecast) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *DayForecast) GetDayCategory() Category {
+	if x != nil {
+		return x.DayCategory
+	}
+	return Category_CATEGORY_UNKNOWN
+}
+
+func (x *DayForecast) GetNightCategory() Category {
+	if x != nil {
+		return x.NightCategory
+	}
+	return Category_CATEGORY_UNKNOWN
+}
+
+func (x *DayForecast) GetMaxC() int32 {
+	if x != nil {
+		return x.MaxC
+	}
+	return 0
+}
+
+func (x *DayForecast) GetMinC() int32 {
+	if x != nil {
+		return x.MinC
+	}
+	return 0
+}
+
+func (x *DayForecast) GetChanceOfRain() int32 {
+	if x != nil {
+		return x.ChanceOfRain
+	}
+	return 0
+}
+
 var File_weather_weather_proto protoreflect.FileDescriptor
 
 const file_weather_weather_proto_rawDesc = "" +
 	"\n" +
 	"\x15weather/weather.proto\x12\aweather\"\x16\n" +
-	"\x14StreamWeatherRequest\"\x9d\a\n" +
+	"\x14StreamWeatherRequest\"\xee\x06\n" +
 	"\rWeatherUpdate\x12&\n" +
 	"\x0ffetched_at_unix\x18\x01 \x01(\x03R\rfetchedAtUnix\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12!\n" +
@@ -455,15 +602,25 @@ const file_weather_weather_proto_rawDesc = "" +
 	"moon_phase\x18\x0e \x01(\x0e2\x12.weather.MoonPhaseR\tmoonPhase\x12\x1d\n" +
 	"\n" +
 	"moon_illum\x18\x0f \x01(\tR\tmoonIllum\x12#\n" +
-	"\rtomorrow_desc\x18\x10 \x01(\tR\ftomorrowDesc\x12>\n" +
-	"\x11tomorrow_category\x18\x11 \x01(\x0e2\x11.weather.CategoryR\x10tomorrowCategory\x12$\n" +
-	"\x0etomorrow_max_c\x18\x12 \x01(\tR\ftomorrowMaxC\x12$\n" +
-	"\x0etomorrow_min_c\x18\x13 \x01(\tR\ftomorrowMinC\x12,\n" +
-	"\x12tomorrow_wind_kmph\x18\x14 \x01(\tR\x10tomorrowWindKmph\x125\n" +
-	"\x17tomorrow_chance_of_rain\x18\x15 \x01(\tR\x14tomorrowChanceOfRain\x12#\n" +
 	"\rwind_beaufort\x18\x16 \x01(\tR\fwindBeaufort\x12)\n" +
 	"\x10tomorrow_sunrise\x18\x17 \x01(\tR\x0ftomorrowSunrise\x12\x1a\n" +
-	"\btimezone\x18\x18 \x01(\tR\btimezone*\xc7\x01\n" +
+	"\btimezone\x18\x18 \x01(\tR\btimezone\x12\x15\n" +
+	"\x06is_day\x18\x19 \x01(\bR\x05isDay\x12-\n" +
+	"\x06hourly\x18\x1a \x03(\v2\x15.weather.HourForecastR\x06hourly\x12*\n" +
+	"\x05daily\x18\x1b \x03(\v2\x14.weather.DayForecastR\x05dailyJ\x04\b\x10\x10\x16R\rtomorrow_descR\x11tomorrow_categoryR\x0etomorrow_max_cR\x0etomorrow_min_cR\x12tomorrow_wind_kmphR\x17tomorrow_chance_of_rain\"\xae\x01\n" +
+	"\fHourForecast\x12\x1b\n" +
+	"\ttime_unix\x18\x01 \x01(\x03R\btimeUnix\x12-\n" +
+	"\bcategory\x18\x02 \x01(\x0e2\x11.weather.CategoryR\bcategory\x12\x15\n" +
+	"\x06is_day\x18\x03 \x01(\bR\x05isDay\x12\x15\n" +
+	"\x06temp_c\x18\x04 \x01(\x05R\x05tempC\x12$\n" +
+	"\x0echance_of_rain\x18\x05 \x01(\x05R\fchanceOfRain\"\xe1\x01\n" +
+	"\vDayForecast\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x124\n" +
+	"\fday_category\x18\x02 \x01(\x0e2\x11.weather.CategoryR\vdayCategory\x128\n" +
+	"\x0enight_category\x18\x03 \x01(\x0e2\x11.weather.CategoryR\rnightCategory\x12\x13\n" +
+	"\x05max_c\x18\x04 \x01(\x05R\x04maxC\x12\x13\n" +
+	"\x05min_c\x18\x05 \x01(\x05R\x04minC\x12$\n" +
+	"\x0echance_of_rain\x18\x06 \x01(\x05R\fchanceOfRain*\xc7\x01\n" +
 	"\bCategory\x12\x14\n" +
 	"\x10CATEGORY_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eCATEGORY_SUNNY\x10\x01\x12\x1a\n" +
@@ -500,24 +657,30 @@ func file_weather_weather_proto_rawDescGZIP() []byte {
 }
 
 var file_weather_weather_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_weather_weather_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_weather_weather_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_weather_weather_proto_goTypes = []any{
 	(Category)(0),                // 0: weather.Category
 	(MoonPhase)(0),               // 1: weather.MoonPhase
 	(*StreamWeatherRequest)(nil), // 2: weather.StreamWeatherRequest
 	(*WeatherUpdate)(nil),        // 3: weather.WeatherUpdate
+	(*HourForecast)(nil),         // 4: weather.HourForecast
+	(*DayForecast)(nil),          // 5: weather.DayForecast
 }
 var file_weather_weather_proto_depIdxs = []int32{
 	0, // 0: weather.WeatherUpdate.current_category:type_name -> weather.Category
 	1, // 1: weather.WeatherUpdate.moon_phase:type_name -> weather.MoonPhase
-	0, // 2: weather.WeatherUpdate.tomorrow_category:type_name -> weather.Category
-	2, // 3: weather.WeatherService.StreamWeather:input_type -> weather.StreamWeatherRequest
-	3, // 4: weather.WeatherService.StreamWeather:output_type -> weather.WeatherUpdate
-	4, // [4:5] is the sub-list for method output_type
-	3, // [3:4] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 2: weather.WeatherUpdate.hourly:type_name -> weather.HourForecast
+	5, // 3: weather.WeatherUpdate.daily:type_name -> weather.DayForecast
+	0, // 4: weather.HourForecast.category:type_name -> weather.Category
+	0, // 5: weather.DayForecast.day_category:type_name -> weather.Category
+	0, // 6: weather.DayForecast.night_category:type_name -> weather.Category
+	2, // 7: weather.WeatherService.StreamWeather:input_type -> weather.StreamWeatherRequest
+	3, // 8: weather.WeatherService.StreamWeather:output_type -> weather.WeatherUpdate
+	8, // [8:9] is the sub-list for method output_type
+	7, // [7:8] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_weather_weather_proto_init() }
@@ -531,7 +694,7 @@ func file_weather_weather_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_weather_weather_proto_rawDesc), len(file_weather_weather_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

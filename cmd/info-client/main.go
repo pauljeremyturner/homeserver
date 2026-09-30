@@ -189,14 +189,14 @@ func (m model) View() string {
 		}
 	}
 
-	if m.weather != nil && m.weather.TomorrowDesc != "" {
-		w := m.weather
-		lines := icon(w.TomorrowCategory)
+	if m.weather != nil && len(m.weather.Daily) > 1 {
+		d := m.weather.Daily[1]
+		lines := icon(d.DayCategory)
 		info := []string{
-			tomorrowStyle.Render("Tomorrow: " + w.TomorrowDesc),
-			tempStyle.Render(w.TomorrowMinC + "C/" + w.TomorrowMaxC + "C"),
-			labelStyle.Render("wind ") + w.TomorrowWindKmph + " km/h",
-			labelStyle.Render("chance of rain ") + w.TomorrowChanceOfRain + "%",
+			tomorrowStyle.Render("Tomorrow"),
+			tempStyle.Render(fmt.Sprintf("%dC/%dC", d.MinC, d.MaxC)),
+			labelStyle.Render("chance of rain ") + fmt.Sprintf("%d%%", d.ChanceOfRain),
+			"",
 			"",
 		}
 		for i := 0; i < len(lines); i++ {

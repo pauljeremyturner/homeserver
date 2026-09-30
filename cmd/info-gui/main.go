@@ -1,7 +1,7 @@
-// info-gui is the graphical info dashboard for the Tinker Board's 800x480
-// screen, run full-screen under the cage Wayland kiosk compositor. It shows
-// the local clock and board temperature, and weather/moon, crypto/wallet and
-// news streamed from info-server over gRPC.
+// info-gui is the graphical info dashboard for a 1024x600 shelf screen, run
+// full-screen under the cage Wayland kiosk compositor. It shows the local
+// clock and board temperature, and weather/moon, crypto/wallet and news
+// streamed from info-server over gRPC.
 package main
 
 import (
@@ -31,9 +31,10 @@ var version = "dev"
 func main() {
 	server := flag.String("server", envOr("INFO_SERVER_ADDR", "localhost:9090"), "info-server gRPC address")
 	demo := flag.Bool("demo", false, "use built-in sample data instead of info-server")
-	shot := flag.String("screenshot", "", "render one 800x480 frame to this PNG and exit")
+	shot := flag.String("screenshot", "", "render one 1024x600 frame to this PNG and exit")
 	kiosk := flag.Bool("kiosk", false, "full screen with no window decorations (for cage)")
-	page := flag.Int("page", 0, "with -screenshot: render page 1 (weather), 2 (markets) or 3 (metals)")
+	page := flag.Int("page", 0, "with -screenshot: render page 1 (weather), 2 (markets) or 4 (planets)")
+	anim := flag.Duration("anim", time.Hour, "with -screenshot -page 4: how long the page has been up (default: animation finished)")
 	at := flag.String("time", "", "with -screenshot: render as if the clock read this HH:MM today")
 	wait := flag.Duration("wait", 4*time.Second, "with -screenshot and live data: how long to wait for the streams first")
 	flag.Parse()
@@ -66,7 +67,7 @@ func main() {
 			}
 			now = time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
 		}
-		if err := screenshot(*shot, s, now, displaypb.Page(*page)); err != nil {
+		if err := screenshot(*shot, s, now, displaypb.Page(*page), *anim); err != nil {
 			log.Fatalf("screenshot: %v", err)
 		}
 		return
@@ -106,10 +107,10 @@ func run(w *app.Window, s *state) error {
 	}
 }
 
-// The layout is designed at 800x480dp; fitMetric scales dp so that fills
-// whatever size the screen really is (the Tinker's HDMI panel has reported
-// both 800x480 and 1024x768 modes).
-const designWidth, designHeight = 800, 480
+// The layout is designed at 1024x600dp, the shelf screen's size, drawn 1:1
+// there; fitMetric scales dp so that fills whatever size the screen really
+// is.
+const designWidth, designHeight = 1024, 600
 
 func fitMetric(size image.Point) unit.Metric {
 	scale := min(float32(size.X)/designWidth, float32(size.Y)/designHeight)
@@ -119,7 +120,7 @@ func fitMetric(size image.Point) unit.Metric {
 	return unit.Metric{PxPerDp: scale, PxPerSp: scale}
 }
 
-func screenshot(path string, s *state, now time.Time, page displaypb.Page) error {
+func screenshot(path string, s *state, now time.Time, page displaypb.Page, elapsed time.Duration) error {
 	const width, height = designWidth, designHeight
 	win, err := headless.NewWindow(width, height)
 	if err != nil {
@@ -134,7 +135,7 @@ func screenshot(path string, s *state, now time.Time, page displaypb.Page) error
 		Now:         now,
 	}
 	u := newUI()
-	u.forcePage = page
+	u.forcePage, u.forceElapsed = page, elapsed
 	u.layout(gtx, gtx.Now, s.snapshot())
 	if err := win.Frame(&ops); err != nil {
 		return err

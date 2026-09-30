@@ -16,6 +16,22 @@ message PlanetsUpdate {
   int64 computed_at_unix = 1;
   // The eight planets, Mercury first.
   repeated Planet planets = 2;
+  // orbits are the planets' orbits at computed_at, Mercury first, each a
+  // closed loop of points starting at perihelion.
+  repeated Path orbits = 3;
+  // history is each planet's positions, Mercury first, one every
+  // history_step_seconds from history_start_unix; the last is computed_at.
+  int64 history_start_unix = 4;
+  int64 history_step_seconds = 5;
+  repeated Path history = 6;
+}
+
+// Path is a series of points in the ecliptic plane, in AU from the Sun: x
+// towards the March equinox, y 90 degrees anticlockwise from it seen from
+// the north.
+message Path {
+  repeated float x_au = 1;
+  repeated float y_au = 2;
 }
 
 message Planet {
@@ -24,4 +40,7 @@ message Planet {
   // anticlockwise seen from the north from the March equinox direction.
   double longitude_deg = 2;
   double distance_au = 3;
+  // x_au and y_au place it as in Path.
+  double x_au = 4;
+  double y_au = 5;
 }

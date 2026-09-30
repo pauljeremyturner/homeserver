@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -45,21 +46,9 @@ type astronomy struct {
 	MoonIllumination string `json:"moon_illumination"`
 }
 
-type hourEntry struct {
-	Time          string       `json:"time"`
-	WeatherCode   string       `json:"weatherCode"`
-	WeatherDesc   []valueField `json:"weatherDesc"`
-	TempC         string       `json:"tempC"`
-	ChanceOfRain  string       `json:"chanceofrain"`
-	WindspeedKmph string       `json:"windspeedKmph"`
-}
-
 type dayForecast struct {
 	Date      string      `json:"date"`
-	MaxtempC  string      `json:"maxtempC"`
-	MintempC  string      `json:"mintempC"`
 	Astronomy []astronomy `json:"astronomy"`
-	Hourly    []hourEntry `json:"hourly"`
 }
 
 type wttrResponse struct {
@@ -201,8 +190,10 @@ func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 		update.CurrentDesc = cur.WeatherDesc[0].Value
 	}
 
+	var lat, lon string
 	if len(w.NearestArea) > 0 {
 		na := w.NearestArea[0]
+		lat, lon = na.Latitude, na.Longitude
 		area, country := "", ""
 		if len(na.AreaName) > 0 {
 			area = na.AreaName[0].Value
@@ -226,35 +217,16 @@ func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 		update.MoonIllum = a.MoonIllumination
 	}
 
-	if len(w.Weather) > 1 {
-		tomorrow := w.Weather[1]
-		update.TomorrowMaxC = tomorrow.MaxtempC
-		update.TomorrowMinC = tomorrow.MintempC
-		if len(tomorrow.Astronomy) > 0 {
-			update.TomorrowSunrise = tomorrow.Astronomy[0].Sunrise
-		}
-		// use the midday (1200) hourly slot as the representative condition
-		found := false
-		for _, h := range tomorrow.Hourly {
-			if h.Time == "1200" {
-				update.TomorrowCategory = categorizeCode(h.WeatherCode)
-				if len(h.WeatherDesc) > 0 {
-					update.TomorrowDesc = h.WeatherDesc[0].Value
-				}
-				update.TomorrowWindKmph = h.WindspeedKmph
-				update.TomorrowChanceOfRain = h.ChanceOfRain
-				found = true
-				break
-			}
-		}
-		if !found && len(tomorrow.Hourly) > 0 {
-			mid := tomorrow.Hourly[len(tomorrow.Hourly)/2]
-			update.TomorrowCategory = categorizeCode(mid.WeatherCode)
-			if len(mid.WeatherDesc) > 0 {
-				update.TomorrowDesc = mid.WeatherDesc[0].Value
-			}
-			update.TomorrowWindKmph = mid.WindspeedKmph
-			update.TomorrowChanceOfRain = mid.ChanceOfRain
+	if len(w.Weather) > 1 && len(w.Weather[1].Astronomy) > 0 {
+		update.TomorrowSunrise = w.Weather[1].Astronomy[0].Sunrise
+	}
+
+	// Without the forecast, wttr.in's current conditions still stand.
+	if lat != "" && lon != "" {
+		if f, err := fetchOpenMeteo(lat, lon); err != nil {
+			log.Printf("weather: forecast fetch failed: %v", err)
+		} else {
+			applyForecast(update, f, time.Now())
 		}
 	}
 

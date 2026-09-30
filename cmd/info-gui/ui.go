@@ -23,7 +23,6 @@ import (
 
 	cryptopb "homeserver/gen/crypto"
 	displaypb "homeserver/gen/display"
-	planetspb "homeserver/gen/planets"
 	weatherpb "homeserver/gen/weather"
 )
 
@@ -69,8 +68,10 @@ type ui struct {
 	// name; nil until known, when the board's own zone is used.
 	locName string
 	loc     *time.Location
-	// forcePage pins one page with no fading (-page, for screenshots).
-	forcePage displaypb.Page
+	// forcePage pins one page with no fading (-page, for screenshots), and
+	// forceElapsed is how long it's been up (-anim).
+	forcePage    displaypb.Page
+	forceElapsed time.Duration
 }
 
 func newUI() *ui {
@@ -105,22 +106,22 @@ func (u *ui) layout(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 // them; the header itself never fades, so the clock stays steady.
 func (u *ui) page(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
 	page := u.forcePage
+	// The planets animate from when the page came up.
+	elapsed, period := u.forceElapsed, defaultPagePeriod
 	if page == displaypb.Page_PAGE_UNKNOWN {
 		var since, next time.Time
 		page, since, next = pageShowing(gtx.Now, s.page)
+		elapsed, period = gtx.Now.Sub(since), next.Sub(since)
 		alpha, wake := pageOpacity(gtx.Now, since, next)
 		gtx.Execute(op.InvalidateCmd{At: wake})
 		defer paint.PushOpacity(gtx.Ops, alpha).Pop()
 	}
 	switch page {
-	case displaypb.Page_PAGE_MARKETS:
-		return u.charts(gtx, now, s, true,
-			chartCard{"BTC / GBP", "", s.btc, colBTC},
-			chartCard{"ETH / GBP", "", s.eth, colETH})
-	case displaypb.Page_PAGE_METALS:
-		return u.charts(gtx, now, s, false,
-			chartCard{"XAU / GBP", "gold, via PAXG", s.xau, colGold},
-			chartCard{"XAG / GBP", "silver, via KAG", s.xag, colSilver})
+	case displaypb.Page_PAGE_PLANETS:
+		return u.planets(gtx, now, s.planets, elapsed, period)
+	// An older server still cycles through a separate metals page.
+	case displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_METALS:
+		return u.markets(gtx, now, s)
 	}
 	return u.weather(gtx, now, s)
 }
@@ -225,37 +226,41 @@ func (u *ui) weather(gtx layout.Context, now time.Time, s snapshot) layout.Dimen
 	if w == nil {
 		return layout.Center.Layout(gtx, u.label(18, colFaint, font.Normal, "Waiting for weather...").Layout)
 	}
-	// Three columns, top-aligned so their headings line up: the forecasts,
-	// then sun and wind, then the solar system in whatever width is left.
+	// Three columns, top-aligned so their headings line up: now and the
+	// moon, then sun and wind, then the week; the next hours along the
+	// bottom.
 	column := func(width unit.Dp, w layout.Widget) layout.FlexChild {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = gtx.Dp(width), gtx.Dp(width)
 			return w(gtx)
 		})
 	}
-	return layout.Inset{Top: 16, Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{}.Layout(gtx,
-			column(300, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.today(gtx, w) }),
-					layout.Rigid(layout.Spacer{Height: 22}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.tomorrow(gtx, w) }),
-					layout.Rigid(layout.Spacer{Height: 22}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, w) }),
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: 14, Bottom: 10, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{}.Layout(gtx,
+					column(340, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.today(gtx, w) }),
+							layout.Rigid(layout.Spacer{Height: 26}.Layout),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.moon(gtx, w) }),
+						)
+					}),
+					layout.Rigid(layout.Spacer{Width: 12}.Layout),
+					column(132, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.sun(gtx, now, w) }),
+							layout.Rigid(layout.Spacer{Height: 16}.Layout),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wind(gtx, w) }),
+						)
+					}),
+					layout.Rigid(layout.Spacer{Width: 32}.Layout),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.week(gtx, now, w) }),
 				)
-			}),
-			layout.Rigid(layout.Spacer{Width: 12}.Layout),
-			column(132, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.sun(gtx, now, w) }),
-					layout.Rigid(layout.Spacer{Height: 26}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wind(gtx, w) }),
-				)
-			}),
-			layout.Rigid(layout.Spacer{Width: 20}.Layout),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.solarSystem(gtx, s.planets) }),
-		)
-	})
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.hours(gtx, now, w) }),
+	)
 }
 
 // iconBlock lays out a column heading, then an icon with text lines to its
@@ -281,29 +286,163 @@ func (u *ui) iconBlock(gtx layout.Context, heading string, icon layout.Widget, l
 }
 
 func (u *ui) today(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensions {
-	return u.iconBlock(gtx, "NOW",
-		func(gtx layout.Context) layout.Dimensions { return weatherIcon(gtx, w.CurrentCategory, gtx.Dp(96)) },
-		u.label(48, colText, font.Medium, w.TempC+"°").Layout,
-		u.label(16, colText, font.Normal, w.CurrentDesc).Layout,
+	// is_day only means something once the forecast has come through.
+	night := len(w.Hourly) > 0 && !w.IsDay
+	lines := []layout.Widget{
+		u.label(64, colText, font.Medium, w.TempC+"°").Layout,
+		u.label(17, colText, font.Normal, w.CurrentDesc).Layout,
 		u.label(14, colDim, font.Normal, "feels "+w.FeelsLikeC+"°  ·  "+w.Humidity+"% humidity").Layout,
+	}
+	if uv, err := strconv.Atoi(w.UvIndex); err == nil {
+		name, c := uvLevel(uv)
+		lines = append(lines, u.label(14, c, font.Normal, fmt.Sprintf("UV %d  ·  %s", uv, name)).Layout)
+	}
+	return u.iconBlock(gtx, "NOW",
+		func(gtx layout.Context) layout.Dimensions {
+			return weatherIcon(gtx, w.CurrentCategory, night, gtx.Dp(120))
+		},
+		lines...)
+}
+
+// uvLevel names a UV index on the WHO scale, with a colour that stays quiet
+// until the sun needs thinking about.
+func uvLevel(uv int) (string, color.NRGBA) {
+	switch {
+	case uv >= 11:
+		return "extreme", colDown
+	case uv >= 8:
+		return "very high", colDown
+	case uv >= 6:
+		return "high", colSun
+	case uv >= 3:
+		return "moderate", colDim
+	}
+	return "low", colDim
+}
+
+// week lists the daily forecast: the day, its chance of rain, day and night
+// icons, and its low and high either side of a bar placing them within the
+// week's range.
+func (u *ui) week(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) layout.Dimensions {
+	width := gtx.Constraints.Max.X
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(u.label(13, colDim, font.Medium, "THIS WEEK").Layout),
+		layout.Rigid(layout.Spacer{Height: 8}.Layout),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			days := w.Daily
+			if len(days) == 0 {
+				return u.label(16, colFaint, font.Normal, "Waiting for forecast...").Layout(gtx)
+			}
+			lo, hi := days[0].MinC, days[0].MaxC
+			for _, d := range days {
+				lo, hi = min(lo, d.MinC), max(hi, d.MaxC)
+			}
+			rowH := min(gtx.Constraints.Max.Y/len(days), gtx.Dp(46))
+			icon := gtx.Dp(32)
+			barL, barR := gtx.Dp(262), width-gtx.Dp(44)
+			today := now.Format("2006-01-02")
+			for i, d := range days {
+				y := i*rowH + rowH/2
+				name := d.Date
+				if d.Date == today {
+					name = "Today"
+				} else if t, err := time.Parse("2006-01-02", d.Date); err == nil {
+					name = t.Format("Mon")
+				}
+				u.labelLeft(gtx, 0, y, u.label(17, colText, font.Normal, name))
+
+				rain := colRain
+				if d.ChanceOfRain < 20 {
+					rain = colFaint
+				}
+				r := float32(gtx.Dp(4))
+				drawDrop(gtx.Ops, rain, float32(gtx.Dp(70)), float32(y)+r*0.6, r)
+				u.labelLeft(gtx, gtx.Dp(80), y, u.label(14, rain, font.Normal, fmt.Sprintf("%d%%", d.ChanceOfRain)))
+
+				for j, cat := range []weatherpb.Category{d.DayCategory, d.NightCategory} {
+					off := op.Offset(image.Pt(gtx.Dp(128)+j*(icon+gtx.Dp(6)), y-icon/2)).Push(gtx.Ops)
+					weatherIcon(gtx, cat, j == 1, icon)
+					off.Pop()
+				}
+
+				u.labelRight(gtx, barL-gtx.Dp(10), y, u.label(17, colDim, font.Normal, fmt.Sprintf("%d°", d.MinC)))
+				u.labelLeft(gtx, barR+gtx.Dp(10), y, u.label(17, colText, font.Medium, fmt.Sprintf("%d°", d.MaxC)))
+				xAt := func(c int32) float32 {
+					return float32(barL) + float32(c-lo)/float32(max(hi-lo, 1))*float32(barR-barL)
+				}
+				thick := float32(gtx.Dp(5))
+				yf := float32(y)
+				strokeLine(gtx.Ops, colRule, thick, f32.Pt(float32(barL), yf), f32.Pt(float32(barR), yf))
+				strokeLine(gtx.Ops, colSun, thick, f32.Pt(xAt(d.MinC), yf), f32.Pt(xAt(d.MaxC)+0.01, yf))
+				if name == "Today" {
+					if t, err := strconv.Atoi(w.TempC); err == nil && int32(t) >= lo && int32(t) <= hi {
+						fillCircle(gtx.Ops, colBg, xAt(int32(t)), yf, thick*0.9)
+						fillCircle(gtx.Ops, colText, xAt(int32(t)), yf, thick*0.55)
+					}
+				}
+			}
+			return layout.Dimensions{Size: image.Pt(width, rowH*len(days))}
+		}),
 	)
 }
 
-func (u *ui) tomorrow(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensions {
-	if w.TomorrowDesc == "" {
+// hoursShown is how many hours ahead the strip along the bottom forecasts.
+const hoursShown = 12
+
+// hours is a strip along the bottom of the next hours' forecasts: the time,
+// an icon, the temperature over a line tracing it, and the chance of rain.
+// Nothing if there's no forecast.
+func (u *ui) hours(gtx layout.Context, now time.Time, w *weatherpb.WeatherUpdate) layout.Dimensions {
+	var hrs []*weatherpb.HourForecast
+	for _, h := range w.Hourly {
+		if h.TimeUnix > now.Unix() && len(hrs) < hoursShown {
+			hrs = append(hrs, h)
+		}
+	}
+	if len(hrs) == 0 {
 		return layout.Dimensions{}
 	}
-	return u.iconBlock(gtx, "TOMORROW",
-		func(gtx layout.Context) layout.Dimensions { return weatherIcon(gtx, w.TomorrowCategory, gtx.Dp(64)) },
-		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Baseline}.Layout(gtx,
-				layout.Rigid(u.label(30, colText, font.Medium, w.TomorrowMaxC+"°").Layout),
-				layout.Rigid(u.label(20, colDim, font.Normal, " / "+w.TomorrowMinC+"°").Layout),
-			)
-		},
-		u.label(15, colText, font.Normal, w.TomorrowDesc).Layout,
-		u.label(14, colDim, font.Normal, "rain "+w.TomorrowChanceOfRain+"%  ·  "+w.TomorrowWindKmph+" km/h").Layout,
-	)
+	width, height := gtx.Constraints.Max.X, gtx.Dp(158)
+	paint.FillShape(gtx.Ops, colPanel, clip.Rect{Max: image.Pt(width, height)}.Op())
+	pad := gtx.Dp(18)
+	u.labelLeft(gtx, pad, gtx.Dp(16), u.label(13, colDim, font.Medium, fmt.Sprintf("NEXT %d HOURS", hoursShown)))
+
+	lo, hi := hrs[0].TempC, hrs[0].TempC
+	for _, h := range hrs {
+		lo, hi = min(lo, h.TempC), max(hi, h.TempC)
+	}
+	// The line gets at least a 4 degree range, so a steady day stays flat.
+	if hi-lo < 4 {
+		mid := float32(lo+hi) / 2
+		lo, hi = int32(math.Floor(float64(mid-2))), int32(math.Ceil(float64(mid+2)))
+	}
+	slot := (width - 2*pad) / hoursShown
+	icon := gtx.Dp(36)
+	lineTop, lineBottom := float32(gtx.Dp(114)), float32(gtx.Dp(130))
+	pts := make([]f32.Point, len(hrs))
+	for i, h := range hrs {
+		x := pad + slot*i + slot/2
+		pts[i] = f32.Pt(float32(x), lineBottom-float32(h.TempC-lo)/float32(hi-lo)*(lineBottom-lineTop))
+		u.labelAt(gtx, x, gtx.Dp(38), u.label(14, colDim, font.Normal, time.Unix(h.TimeUnix, 0).In(now.Location()).Format("15:04")))
+		off := op.Offset(image.Pt(x-icon/2, gtx.Dp(50))).Push(gtx.Ops)
+		weatherIcon(gtx, h.Category, !h.IsDay, icon)
+		off.Pop()
+		u.labelAt(gtx, x, gtx.Dp(101), u.label(17, colText, font.Medium, fmt.Sprintf("%d°", h.TempC)))
+		rain := colRain
+		if h.ChanceOfRain < 20 {
+			rain = colFaint
+		}
+		u.labelAt(gtx, x, gtx.Dp(146), u.label(13, rain, font.Normal, fmt.Sprintf("%d%%", h.ChanceOfRain)))
+	}
+	line := colSun
+	line.A = 140
+	if len(pts) > 1 {
+		strokeLine(gtx.Ops, line, float32(gtx.Dp(2)), pts...)
+	}
+	for _, p := range pts {
+		fillCircle(gtx.Ops, colText, p.X, p.Y, float32(gtx.Dp(3)))
+	}
+	return layout.Dimensions{Size: image.Pt(width, height)}
 }
 
 func (u *ui) moon(gtx layout.Context, w *weatherpb.WeatherUpdate) layout.Dimensions {
@@ -467,83 +606,40 @@ func moonPhaseLabel(phase weatherpb.MoonPhase) string {
 	return "Unknown"
 }
 
-// --- solar system ----------------------------------------------------------
+// --- markets / news --------------------------------------------------------
 
-// solarSystem draws the planets on a top-down dial filling the column's
-// width (or height, if that's smaller), with each planet's name beside it.
-func (u *ui) solarSystem(gtx layout.Context, p *planetspb.PlanetsUpdate) layout.Dimensions {
-	width := gtx.Constraints.Max.X
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return u.centred(gtx, width, u.label(13, colDim, font.Medium, "SOLAR SYSTEM"))
-		}),
-		layout.Rigid(layout.Spacer{Height: 8}.Layout),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			size := min(width, gtx.Constraints.Max.Y)
-			if p == nil || len(p.Planets) == 0 {
-				return layout.Dimensions{Size: image.Pt(width, size)}
-			}
-			left := (width - size) / 2
-			defer op.Offset(image.Pt(left, 0)).Push(gtx.Ops).Pop()
-			lons := make([]float64, len(p.Planets))
-			for i, pl := range p.Planets {
-				lons[i] = pl.LongitudeDeg
-			}
-			spots := planetDial(gtx, lons, size, gtx.Dp(8))
-			for i, pl := range p.Planets {
-				if pl.Name == "" {
-					continue
-				}
-				// The name sits beside the planet on its outer side, so names
-				// read away from the Sun, unless that would run off the column.
-				pos, gap := spots[i].pos, float32(gtx.Dp(7))
-				l := u.label(11, planetColour(i), font.Medium, pl.Name)
-				nameW := u.labelWidth(gtx, l)
-				right := spots[i].out.X >= 0
-				if right && int(pos.X+gap)+nameW > width-left {
-					right = false
-				} else if !right && int(pos.X-gap)-nameW < -left {
-					right = true
-				}
-				if right {
-					u.labelLeft(gtx, int(pos.X+gap), int(pos.Y), l)
-				} else {
-					u.labelRight(gtx, int(pos.X-gap), int(pos.Y), l)
-				}
-			}
-			return layout.Dimensions{Size: image.Pt(width, size)}
-		}),
-	)
-}
-
-// --- markets / metals / news ----------------------------------------------
-
-// chartCard is one price chart on a charts page.
+// chartCard is one price chart on the markets page.
 type chartCard struct {
 	title, note string // "XAU / GBP", and a faint aside after it
 	c           *cryptopb.CryptoUpdate
 	accent      color.NRGBA
 }
 
-// charts is a page of two price charts side by side with the news below,
-// and the wallet between them if withWallet (the crypto page).
-func (u *ui) charts(gtx layout.Context, now time.Time, s snapshot, withWallet bool, left, right chartCard) layout.Dimensions {
+// markets is a page of four price charts, crypto above metals, with the
+// wallet and the news below.
+func (u *ui) markets(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
+	row := func(left, right chartCard) layout.FlexChild {
+		return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, left) }),
+				layout.Rigid(layout.Spacer{Width: 32}.Layout),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, right) }),
+			)
+		})
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: 14, Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{}.Layout(gtx,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, left) }),
-					layout.Rigid(layout.Spacer{Width: 24}.Layout),
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.coin(gtx, now, right) }),
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					row(chartCard{"BTC / GBP", "", s.btc, colBTC},
+						chartCard{"ETH / GBP", "", s.eth, colETH}),
+					layout.Rigid(layout.Spacer{Height: 16}.Layout),
+					row(chartCard{"XAU / GBP", "gold, via PAXG", s.xau, colGold},
+						chartCard{"XAG / GBP", "silver, via KAG", s.xag, colSilver}),
 				)
 			})
 		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if !withWallet {
-				return layout.Dimensions{}
-			}
-			return u.wallet(gtx, s)
-		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.wallet(gtx, s) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.ticker(gtx, now, s) }),
 	)
 }

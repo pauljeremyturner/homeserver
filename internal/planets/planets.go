@@ -57,38 +57,95 @@ type Position struct {
 	Longitude float64
 	// DistanceAU is the distance from the Sun.
 	DistanceAU float64
+	// X and Y place the planet in the ecliptic plane, in AU from the Sun: X
+	// towards the March equinox, Y 90 degrees anticlockwise from it seen
+	// from the north.
+	X, Y float64
 }
 
-// At returns the eight planets' positions at t, Mercury first.
-func At(t time.Time) []Position {
+// Point is a place in the ecliptic plane, in AU, as Position's X and Y.
+type Point struct{ X, Y float64 }
+
+// orbit is a planet's orbit at a given time.
+type orbit struct {
+	a, e      float64
+	m         float64 // mean anomaly, radians
+	w, o, inc float64 // argument of perihelion, ascending node, inclination, radians
+}
+
+func orbitAt(p planet, t time.Time) orbit {
 	// Julian centuries since J2000 (TT; the ~1 minute TT-UTC gap is
 	// irrelevant here).
 	jd := float64(t.UTC().UnixNano())/86400e9 + 2440587.5
 	T := (jd - 2451545.0) / 36525
+	el := func(v0, rate float64) float64 { return v0 + rate*T }
+	l, peri, node := el(p.at0.l, p.rates.l), el(p.at0.peri, p.rates.peri), el(p.at0.node, p.rates.node)
+	return orbit{
+		a:   el(p.at0.a, p.rates.a),
+		e:   el(p.at0.e, p.rates.e),
+		m:   rad(math.Remainder(l-peri, 360)),
+		w:   rad(peri - node),
+		o:   rad(node),
+		inc: rad(el(p.at0.i, p.rates.i)),
+	}
+}
+
+// point is where on the orbit the eccentric anomaly E is, projected onto
+// the ecliptic: in the orbital plane, then rotated into ecliptic x/y.
+func (b orbit) point(E float64) Point {
+	xp, yp := b.a*(math.Cos(E)-b.e), b.a*math.Sqrt(1-b.e*b.e)*math.Sin(E)
+	w, o, inc := b.w, b.o, b.inc
+	x := (math.Cos(w)*math.Cos(o)-math.Sin(w)*math.Sin(o)*math.Cos(inc))*xp +
+		(-math.Sin(w)*math.Cos(o)-math.Cos(w)*math.Sin(o)*math.Cos(inc))*yp
+	y := (math.Cos(w)*math.Sin(o)+math.Sin(w)*math.Cos(o)*math.Cos(inc))*xp +
+		(-math.Sin(w)*math.Sin(o)+math.Cos(w)*math.Cos(o)*math.Cos(inc))*yp
+	return Point{x, y}
+}
+
+// At returns the eight planets' positions at t, Mercury first.
+func At(t time.Time) []Position {
 	out := make([]Position, len(table))
 	for n, p := range table {
-		el := func(v0, rate float64) float64 { return v0 + rate*T }
-		a, e := el(p.at0.a, p.rates.a), el(p.at0.e, p.rates.e)
-		inc := rad(el(p.at0.i, p.rates.i))
-		l, peri, node := el(p.at0.l, p.rates.l), el(p.at0.peri, p.rates.peri), el(p.at0.node, p.rates.node)
-
-		m := rad(math.Remainder(l-peri, 360))
-		w := rad(peri - node)
-		E := m
+		b := orbitAt(p, t)
+		E := b.m
 		for range 10 {
-			E -= (E - e*math.Sin(E) - m) / (1 - e*math.Cos(E))
+			E -= (E - b.e*math.Sin(E) - b.m) / (1 - b.e*math.Cos(E))
 		}
-		// Position in the orbital plane, then rotated into ecliptic x/y.
-		xp, yp := a*(math.Cos(E)-e), a*math.Sqrt(1-e*e)*math.Sin(E)
-		o := rad(node)
-		x := (math.Cos(w)*math.Cos(o)-math.Sin(w)*math.Sin(o)*math.Cos(inc))*xp +
-			(-math.Sin(w)*math.Cos(o)-math.Cos(w)*math.Sin(o)*math.Cos(inc))*yp
-		y := (math.Cos(w)*math.Sin(o)+math.Sin(w)*math.Cos(o)*math.Cos(inc))*xp +
-			(-math.Sin(w)*math.Sin(o)+math.Cos(w)*math.Cos(o)*math.Cos(inc))*yp
-		lon := math.Mod(math.Atan2(y, x)*180/math.Pi+360, 360)
-		out[n] = Position{Name: p.name, Longitude: lon, DistanceAU: math.Hypot(x, y)}
+		pt := b.point(E)
+		lon := math.Mod(math.Atan2(pt.Y, pt.X)*180/math.Pi+360, 360)
+		out[n] = Position{Name: p.name, Longitude: lon, DistanceAU: math.Hypot(pt.X, pt.Y), X: pt.X, Y: pt.Y}
+	}
+	return out
+}
+
+// Orbits returns the eight planets' orbits at t, Mercury first, each as n
+// points around the ellipse (projected onto the ecliptic), starting at
+// perihelion.
+func Orbits(t time.Time, n int) [][]Point {
+	out := make([][]Point, len(table))
+	for i, p := range table {
+		b := orbitAt(p, t)
+		out[i] = make([]Point, n)
+		for k := range n {
+			out[i][k] = b.point(2 * math.Pi * float64(k) / float64(n))
+		}
 	}
 	return out
 }
 
 func rad(d float64) float64 { return d * math.Pi / 180 }
+
+// History returns each planet's positions (Mercury first) at frames+1 evenly
+// spaced times from span before end up to end itself, with the first time
+// and the spacing.
+func History(end time.Time, span time.Duration, frames int) (start time.Time, step time.Duration, paths [][]Point) {
+	step = span / time.Duration(frames)
+	start = end.Add(-step * time.Duration(frames))
+	paths = make([][]Point, len(table))
+	for k := 0; k <= frames; k++ {
+		for i, p := range At(start.Add(step * time.Duration(k))) {
+			paths[i] = append(paths[i], Point{p.X, p.Y})
+		}
+	}
+	return start, step, paths
+}

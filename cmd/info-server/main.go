@@ -63,9 +63,15 @@ func main() {
 	addr := envOr("LISTEN_ADDR", ":9090")
 	walletAddr := os.Getenv("WALLET_BTC_ADDRESS")
 	walletLabel := envOr("WALLET_BTC_LABEL", "BTC Wallet")
-	pageSeconds, err := strconv.Atoi(envOr("PAGE_SECONDS", "30"))
+	pageSeconds, err := strconv.Atoi(envOr("PAGE_SECONDS", "60"))
 	if err != nil || pageSeconds <= 0 {
 		log.Fatalf("PAGE_SECONDS must be a positive number of seconds, got %q", os.Getenv("PAGE_SECONDS"))
+	}
+	// The planets' elements are only good from 1800, and past ~50 years
+	// Mercury laps too fast for a display's animation to follow.
+	planetsYears, err := strconv.Atoi(envOr("PLANETS_YEARS", "20"))
+	if err != nil || planetsYears < 1 || planetsYears > 200 {
+		log.Fatalf("PLANETS_YEARS must be a number of years from 1 to 200, got %q", os.Getenv("PLANETS_YEARS"))
 	}
 
 	weatherBC := broadcast.New[*weatherpb.WeatherUpdate]()
@@ -80,7 +86,7 @@ func main() {
 
 	go pollWeather(weatherBC)
 	go pollNews(newsBC)
-	go pollPlanets(planetsBC)
+	go pollPlanets(planetsBC, planetsYears)
 	go cyclePages(pageBC, time.Duration(pageSeconds)*time.Second)
 	for _, c := range trackedCoins {
 		go pollCrypto(c, cryptoBCs[c.symbol])

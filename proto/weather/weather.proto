@@ -60,12 +60,12 @@ message WeatherUpdate {
   MoonPhase moon_phase = 14;
   string moon_illum = 15;
 
-  string tomorrow_desc = 16;
-  Category tomorrow_category = 17;
-  string tomorrow_max_c = 18;
-  string tomorrow_min_c = 19;
-  string tomorrow_wind_kmph = 20;
-  string tomorrow_chance_of_rain = 21;
+  // 16-21 were tomorrow_desc, tomorrow_category, tomorrow_max_c,
+  // tomorrow_min_c, tomorrow_wind_kmph and tomorrow_chance_of_rain, replaced
+  // by daily[1].
+  reserved 16 to 21;
+  reserved "tomorrow_desc", "tomorrow_category", "tomorrow_max_c",
+      "tomorrow_min_c", "tomorrow_wind_kmph", "tomorrow_chance_of_rain";
 
   // wind_beaufort is the Beaufort scale name for wind_kmph ("Light breeze"),
   // empty if the speed couldn't be parsed.
@@ -77,4 +77,36 @@ message WeatherUpdate {
   // so clients can show its local time whatever their own clock is set to.
   // Empty if it couldn't be looked up.
   string timezone = 24;
+
+  // is_day says whether it's daytime now, for a day or night icon.
+  bool is_day = 25;
+  // hourly is the forecast for the next 24 hours, starting with the current
+  // hour. Empty if the forecast couldn't be fetched.
+  repeated HourForecast hourly = 26;
+  // daily is the forecast for 7 days, starting today. Empty if the forecast
+  // couldn't be fetched.
+  repeated DayForecast daily = 27;
+}
+
+message HourForecast {
+  // time_unix is the start of the hour.
+  int64 time_unix = 1;
+  Category category = 2;
+  bool is_day = 3;
+  int32 temp_c = 4;
+  // chance_of_rain is the probability of precipitation, 0-100.
+  int32 chance_of_rain = 5;
+}
+
+message DayForecast {
+  // date is the local date at the weather location, "2006-01-02".
+  string date = 1;
+  // day_category is the worst weather from 06:00 to 18:00, night_category
+  // the worst from 18:00 to 06:00 the next morning.
+  Category day_category = 2;
+  Category night_category = 3;
+  int32 max_c = 4;
+  int32 min_c = 5;
+  // chance_of_rain is the day's highest hourly probability of precipitation.
+  int32 chance_of_rain = 6;
 }

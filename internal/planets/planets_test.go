@@ -45,3 +45,26 @@ func TestAtMatchesHorizons(t *testing.T) {
 		}
 	}
 }
+
+func TestOrbitsPassThroughPlanets(t *testing.T) {
+	at := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
+	orbits := Orbits(at, 3600)
+	for i, p := range At(at) {
+		if math.Abs(math.Hypot(p.X, p.Y)-p.DistanceAU) > 1e-9 {
+			t.Errorf("%s: X/Y %.3f,%.3f don't match distance %.3f", p.Name, p.X, p.Y, p.DistanceAU)
+		}
+		// The planet lies on its orbit, to within the spacing of the points.
+		best := math.Inf(1)
+		for _, o := range orbits[i] {
+			best = min(best, math.Hypot(o.X-p.X, o.Y-p.Y))
+		}
+		if best > p.DistanceAU*0.002 {
+			t.Errorf("%s: %.4f AU from its orbit", p.Name, best)
+		}
+	}
+	// Mercury's orbit is visibly off-centre: perihelion ~0.31 AU, aphelion ~0.47.
+	peri, aph := math.Hypot(orbits[0][0].X, orbits[0][0].Y), math.Hypot(orbits[0][1800].X, orbits[0][1800].Y)
+	if math.Abs(peri-0.3075) > 0.001 || math.Abs(aph-0.4667) > 0.001 {
+		t.Errorf("Mercury perihelion %.4f, aphelion %.4f AU", peri, aph)
+	}
+}

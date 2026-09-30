@@ -8,7 +8,7 @@ import (
 )
 
 // pageCycle is the order displays show their pages in.
-var pageCycle = []displaypb.Page{displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_METALS}
+var pageCycle = []displaypb.Page{displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_PLANETS}
 
 // pageAt is the page showing at t when each page is shown for period, with
 // the cycle anchored to the Unix epoch so it lines up with the clock (with

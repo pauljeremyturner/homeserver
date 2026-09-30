@@ -68,7 +68,9 @@ func drawCloud(ops *op.Ops, c color.NRGBA, x, baseY, w float32) {
 	fillCircle(ops, c, x+w*0.6, baseY-h*1.2, w*0.26)
 }
 
-func weatherIcon(gtx layout.Context, cat weatherpb.Category, size int) layout.Dimensions {
+// weatherIcon draws a category's icon; night swaps the sun for a crescent
+// moon.
+func weatherIcon(gtx layout.Context, cat weatherpb.Category, night bool, size int) layout.Dimensions {
 	ops := gtx.Ops
 	s := float32(size)
 	cloudX, cloudBase, cloudW := s*0.08, s*0.62, s*0.84
@@ -79,9 +81,17 @@ func weatherIcon(gtx layout.Context, cat weatherpb.Category, size int) layout.Di
 	}
 	switch cat {
 	case weatherpb.Category_CATEGORY_SUNNY:
-		drawSun(ops, s/2, s/2, s*0.24)
+		if night {
+			drawCrescent(ops, s/2, s/2, s*0.3)
+		} else {
+			drawSun(ops, s/2, s/2, s*0.24)
+		}
 	case weatherpb.Category_CATEGORY_PARTLY_CLOUDY:
-		drawSun(ops, s*0.62, s*0.36, s*0.17)
+		if night {
+			drawCrescent(ops, s*0.62, s*0.34, s*0.22)
+		} else {
+			drawSun(ops, s*0.62, s*0.36, s*0.17)
+		}
 		drawCloud(ops, colCloud, s*0.06, s*0.8, s*0.72)
 	case weatherpb.Category_CATEGORY_CLOUDY:
 		drawCloud(ops, colCloudDark, s*0.28, s*0.55, s*0.62)
@@ -125,11 +135,21 @@ func weatherIcon(gtx layout.Context, cat weatherpb.Category, size int) layout.Di
 // lit side is the right while waxing and the left while waning, as seen from
 // the northern hemisphere.
 func moonIcon(gtx layout.Context, illum float64, waxing bool, size int) layout.Dimensions {
-	ops := gtx.Ops
 	r := float32(size) / 2
-	cx, cy := r, r
-	fillCircle(ops, colMoonDark, cx, cy, r)
+	fillCircle(gtx.Ops, colMoonDark, r, r, r)
+	drawLitMoon(gtx.Ops, r, r, r, illum, waxing)
+	return layout.Dimensions{Size: image.Pt(size, size)}
+}
 
+// drawCrescent draws a waning crescent, lit on the left, the night sky's
+// stand-in for the sun.
+func drawCrescent(ops *op.Ops, cx, cy, r float32) {
+	drawLitMoon(ops, cx, cy, r, 0.3, false)
+}
+
+// drawLitMoon draws just the lit part of a moon of radius r centred on
+// (cx, cy).
+func drawLitMoon(ops *op.Ops, cx, cy, r float32, illum float64, waxing bool) {
 	side := float32(1)
 	if !waxing {
 		side = -1
@@ -151,7 +171,13 @@ func moonIcon(gtx layout.Context, illum float64, waxing bool, size int) layout.D
 		lit = append(lit, f32.Pt(cx+k*r*float32(math.Cos(a)), cy+r*float32(math.Sin(a))))
 	}
 	fillPolygon(ops, colMoon, lit)
-	return layout.Dimensions{Size: image.Pt(size, size)}
+}
+
+// drawDrop draws a raindrop whose round bottom has radius r and centre
+// (cx, cy); its point is 2r above that.
+func drawDrop(ops *op.Ops, c color.NRGBA, cx, cy, r float32) {
+	fillCircle(ops, c, cx, cy, r)
+	fillPolygon(ops, c, []f32.Point{f32.Pt(cx, cy-2*r), f32.Pt(cx+r*0.866, cy-r*0.5), f32.Pt(cx-r*0.866, cy-r*0.5)})
 }
 
 var planetColours = []color.NRGBA{
@@ -170,47 +196,6 @@ func planetColour(i int) color.NRGBA {
 		return planetColours[i]
 	}
 	return colText
-}
-
-// dialSpot is where planetDial put a planet, and the unit vector pointing
-// away from the Sun through it.
-type dialSpot struct {
-	pos, out f32.Point
-}
-
-// planetDial draws the solar system seen from above the north pole in a
-// size x size box: the Sun in the middle and one evenly spaced circular
-// orbit per planet (not to scale), with each planet at its heliocentric
-// longitude (degrees, Mercury first) — the March equinox direction to the
-// right, planets moving anticlockwise. margin is left clear outside the
-// outermost orbit. Earth is drawn a little larger.
-func planetDial(gtx layout.Context, lons []float64, size, margin int) []dialSpot {
-	ops := gtx.Ops
-	c := float32(size) / 2
-	sunR := float32(gtx.Dp(7))
-	inner := sunR * 2.4
-	outer := c - float32(margin)
-	n := len(lons)
-	radius := func(i int) float32 {
-		return inner + (outer-inner)*float32(i)/float32(max(n-1, 1))
-	}
-	for i := range n {
-		strokeLine(ops, rgb(0x2c3139), float32(gtx.Dp(1)), polyArc(c, c, radius(i), 0, 2*math.Pi)...)
-	}
-	fillCircle(ops, colSun, c, c, sunR)
-	spots := make([]dialSpot, n)
-	for i, lon := range lons {
-		t := lon * math.Pi / 180
-		dx, dy := float32(math.Cos(t)), -float32(math.Sin(t))
-		r := radius(i)
-		spots[i] = dialSpot{pos: f32.Pt(c+dx*r, c+dy*r), out: f32.Pt(dx, dy)}
-		dot := float32(gtx.Dp(4))
-		if i == 2 {
-			dot = float32(gtx.Dp(5))
-		}
-		fillCircle(ops, planetColour(i), spots[i].pos.X, spots[i].pos.Y, dot)
-	}
-	return spots
 }
 
 // polyArc returns points along a circular arc centred on (cx, cy), from
