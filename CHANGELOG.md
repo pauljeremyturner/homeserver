@@ -3,6 +3,14 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## Unreleased
+
+### Fixed
+- info-server: an hour Open-Meteo codes as rain, snow or thunder but gives
+  under a 20% chance and no amount of is forecast as cloud, so a 3% chance
+  no longer shows a rain icon in the hourly strip or the week's day and
+  night icons.
+
 ## 1.8.0 - 2026-09-30
 
 ### Added

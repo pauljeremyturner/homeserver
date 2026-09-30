@@ -33,6 +33,7 @@ type openMeteoResponse struct {
 		Temp         []float64 `json:"temperature_2m"`
 		WeatherCode  []int     `json:"weather_code"`
 		ChanceOfRain []int     `json:"precipitation_probability"`
+		PrecipMM     []float64 `json:"precipitation"`
 		IsDay        []int     `json:"is_day"`
 	} `json:"hourly"`
 	Daily struct {
@@ -49,7 +50,7 @@ func fetchOpenMeteo(lat, lon string) (*openMeteoResponse, error) {
 		"latitude":   {lat},
 		"longitude":  {lon},
 		"current":    {"temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,is_day,uv_index"},
-		"hourly":     {"temperature_2m,weather_code,precipitation_probability,is_day"},
+		"hourly":     {"temperature_2m,weather_code,precipitation_probability,precipitation,is_day"},
 		"daily":      {"temperature_2m_max,temperature_2m_min"},
 		"timezone":   {"auto"},
 		"timeformat": {"unixtime"},
@@ -70,7 +71,7 @@ func fetchOpenMeteo(lat, lon string) (*openMeteoResponse, error) {
 		return nil, err
 	}
 	h := r.Hourly
-	if len(h.Temp) != len(h.Time) || len(h.WeatherCode) != len(h.Time) || len(h.ChanceOfRain) != len(h.Time) || len(h.IsDay) != len(h.Time) ||
+	if len(h.Temp) != len(h.Time) || len(h.WeatherCode) != len(h.Time) || len(h.ChanceOfRain) != len(h.Time) || len(h.PrecipMM) != len(h.Time) || len(h.IsDay) != len(h.Time) ||
 		len(r.Daily.Max) != len(r.Daily.Time) || len(r.Daily.Min) != len(r.Daily.Time) {
 		return nil, fmt.Errorf("open-meteo: mismatched series lengths")
 	}
@@ -93,6 +94,10 @@ func applyForecast(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now ti
 	update.IsDay = c.IsDay == 1
 
 	h := r.Hourly
+	codes := make([]int, len(h.Time))
+	for i := range codes {
+		codes[i] = likelyCode(h.WeatherCode[i], h.ChanceOfRain[i], h.PrecipMM[i])
+	}
 	hour := now.Truncate(time.Hour).Unix()
 	for i, t := range h.Time {
 		if t < hour || len(update.Hourly) == 24 {
@@ -100,7 +105,7 @@ func applyForecast(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now ti
 		}
 		update.Hourly = append(update.Hourly, &weatherpb.HourForecast{
 			TimeUnix:     t,
-			Category:     categorizeWMO(h.WeatherCode[i]),
+			Category:     categorizeWMO(codes[i]),
 			IsDay:        h.IsDay[i] == 1,
 			TempC:        int32(math.Round(h.Temp[i])),
 			ChanceOfRain: int32(h.ChanceOfRain[i]),
@@ -123,9 +128,9 @@ func applyForecast(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now ti
 		for i, t := range h.Time {
 			switch hrs := (t - midnight) / 3600; {
 			case hrs >= 6 && hrs < 18:
-				dayCode = max(dayCode, h.WeatherCode[i])
+				dayCode = max(dayCode, codes[i])
 			case hrs >= 18 && hrs < 30:
-				nightCode = max(nightCode, h.WeatherCode[i])
+				nightCode = max(nightCode, codes[i])
 			}
 			if t >= midnight && t < midnight+24*3600 {
 				day.ChanceOfRain = max(day.ChanceOfRain, int32(h.ChanceOfRain[i]))
@@ -134,6 +139,21 @@ func applyForecast(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now ti
 		day.DayCategory, day.NightCategory = categorizeWMO(dayCode), categorizeWMO(nightCode)
 		update.Daily = append(update.Daily, day)
 	}
+}
+
+// unlikelyRain is the chance of precipitation (%) below which an hour
+// forecast dry is shown as cloud whatever its weather code.
+const unlikelyRain = 20
+
+// likelyCode is an hour's WMO code, unless it's rain, snow or thunder that
+// Open-Meteo itself gives little chance of and forecasts no amount for (its
+// codes come from one model, its probabilities from an ensemble, and they
+// can disagree): then it's overcast, so a 3% chance doesn't show as rain.
+func likelyCode(code, chance int, mm float64) int {
+	if code >= 51 && chance < unlikelyRain && mm == 0 {
+		return 3
+	}
+	return code
 }
 
 func roundC(c float64) string {

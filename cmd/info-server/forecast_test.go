@@ -15,17 +15,21 @@ func TestApplyForecast(t *testing.T) {
 	var r openMeteoResponse
 	r.UTCOffsetSeconds = offset
 	for i := range 48 {
-		code, rain := 0, 0
+		code, rain, mm := 0, 0, 0.0
 		switch i {
 		case 10:
-			code, rain = 61, 70
+			code, rain, mm = 61, 70, 1.2
 		case 26:
-			code, rain = 95, 40
+			code, rain, mm = 95, 40, 3.5
+		case 14, 44:
+			// Rain the ensemble gives only a 3% chance, and no amount.
+			code, rain = 61, 3
 		}
 		r.Hourly.Time = append(r.Hourly.Time, midnight+int64(i)*3600)
 		r.Hourly.Temp = append(r.Hourly.Temp, float64(i))
 		r.Hourly.WeatherCode = append(r.Hourly.WeatherCode, code)
 		r.Hourly.ChanceOfRain = append(r.Hourly.ChanceOfRain, rain)
+		r.Hourly.PrecipMM = append(r.Hourly.PrecipMM, mm)
 		r.Hourly.IsDay = append(r.Hourly.IsDay, 0)
 	}
 	r.Daily.Time = []int64{midnight, midnight + 24*3600}
@@ -37,6 +41,9 @@ func TestApplyForecast(t *testing.T) {
 	applyForecast(&u, &r, time.Unix(midnight+13*3600+1800, 0)) // 13:30
 	if len(u.Hourly) != 24 || u.Hourly[0].TimeUnix != midnight+13*3600 || u.Hourly[0].TempC != 13 {
 		t.Errorf("hourly: got %d hours starting %v", len(u.Hourly), u.Hourly[0])
+	}
+	if c := u.Hourly[1].Category; c != weatherpb.Category_CATEGORY_CLOUDY {
+		t.Errorf("14:00, 3%% chance of rain: got %v, want cloudy", c)
 	}
 	if u.WindDir != "SSW" {
 		t.Errorf("wind dir: got %q, want SSW", u.WindDir)
@@ -51,7 +58,7 @@ func TestApplyForecast(t *testing.T) {
 	}
 	d = u.Daily[1]
 	if d.Date != "2026-10-01" || d.ChanceOfRain != 40 ||
-		d.DayCategory != weatherpb.Category_CATEGORY_SUNNY || d.NightCategory != weatherpb.Category_CATEGORY_SUNNY {
+		d.DayCategory != weatherpb.Category_CATEGORY_SUNNY || d.NightCategory != weatherpb.Category_CATEGORY_CLOUDY {
 		t.Errorf("day two: got %v", d)
 	}
 }
