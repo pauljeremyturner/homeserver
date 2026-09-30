@@ -14,12 +14,13 @@ type coingeckoResponse struct {
 	Prices [][2]float64 `json:"prices"`
 }
 
-// fetchCryptoWeek fetches 7 days of hourly GBP prices for the given CoinGecko
-// coin id (e.g. "bitcoin", "ethereum"), labeling the result with symbol
-// (e.g. "BTC", "ETH") for display.
-func fetchCryptoWeek(coinID, symbol string) (*cryptopb.CryptoUpdate, error) {
+// fetchCrypto fetches days of GBP prices for the given CoinGecko coin id
+// (e.g. "bitcoin", "ethereum"), labeling the result with symbol (e.g.
+// "BTC", "ETH") for display. CoinGecko picks the spacing: hourly up to 90
+// days, daily (plus a last point for now) beyond.
+func fetchCrypto(coinID, symbol string, days int) (*cryptopb.CryptoUpdate, error) {
 	client := http.Client{Timeout: 15 * time.Second}
-	url := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s/market_chart?vs_currency=gbp&days=7", coinID)
+	url := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s/market_chart?vs_currency=gbp&days=%d", coinID, days)
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
@@ -29,6 +30,9 @@ func fetchCryptoWeek(coinID, symbol string) (*cryptopb.CryptoUpdate, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("coingecko %s: %s: %.80s", coinID, resp.Status, body)
 	}
 
 	var cg coingeckoResponse
@@ -72,5 +76,6 @@ func fetchCryptoWeek(coinID, symbol string) (*cryptopb.CryptoUpdate, error) {
 		Min:           min,
 		Max:           max,
 		TimesUnix:     times,
+		Days:          int32(days),
 	}, nil
 }

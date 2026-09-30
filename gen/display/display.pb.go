@@ -29,8 +29,9 @@ const (
 	Page_PAGE_MARKETS Page = 2 // crypto and metals charts, wallet, news
 	// PAGE_METALS was a page of its own for gold and silver, now on
 	// PAGE_MARKETS; no longer sent.
-	Page_PAGE_METALS  Page = 3
-	Page_PAGE_PLANETS Page = 4 // the planets over the last years, then today
+	Page_PAGE_METALS     Page = 3
+	Page_PAGE_PLANETS    Page = 4 // the planets over the last years, then today
+	Page_PAGE_MARKETS_6M Page = 5 // PAGE_MARKETS with six months of prices, not a week
 )
 
 // Enum value maps for Page.
@@ -41,13 +42,15 @@ var (
 		2: "PAGE_MARKETS",
 		3: "PAGE_METALS",
 		4: "PAGE_PLANETS",
+		5: "PAGE_MARKETS_6M",
 	}
 	Page_value = map[string]int32{
-		"PAGE_UNKNOWN": 0,
-		"PAGE_WEATHER": 1,
-		"PAGE_MARKETS": 2,
-		"PAGE_METALS":  3,
-		"PAGE_PLANETS": 4,
+		"PAGE_UNKNOWN":    0,
+		"PAGE_WEATHER":    1,
+		"PAGE_MARKETS":    2,
+		"PAGE_METALS":     3,
+		"PAGE_PLANETS":    4,
+		"PAGE_MARKETS_6M": 5,
 	}
 )
 
@@ -120,8 +123,13 @@ type PageUpdate struct {
 	SinceUnix int64                  `protobuf:"varint,2,opt,name=since_unix,json=sinceUnix,proto3" json:"since_unix,omitempty"`
 	// next_unix is when the page will next change, so a client that loses
 	// the stream can keep cycling on its own clock.
-	NextUnix      int64 `protobuf:"varint,3,opt,name=next_unix,json=nextUnix,proto3" json:"next_unix,omitempty"`
+	NextUnix int64 `protobuf:"varint,3,opt,name=next_unix,json=nextUnix,proto3" json:"next_unix,omitempty"`
+	// period_seconds is how long this page shows for (pages can differ).
 	PeriodSeconds int64 `protobuf:"varint,4,opt,name=period_seconds,json=periodSeconds,proto3" json:"period_seconds,omitempty"`
+	// cycle is the whole rotation, in order, so a client that loses the
+	// stream carries on with the same pages and timings; it's anchored to
+	// the Unix epoch, repeating every sum of the slots' seconds.
+	Cycle         []*PageSlot `protobuf:"bytes,5,rep,name=cycle,proto3" json:"cycle,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -184,25 +192,89 @@ func (x *PageUpdate) GetPeriodSeconds() int64 {
 	return 0
 }
 
+func (x *PageUpdate) GetCycle() []*PageSlot {
+	if x != nil {
+		return x.Cycle
+	}
+	return nil
+}
+
+type PageSlot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          Page                   `protobuf:"varint,1,opt,name=page,proto3,enum=display.Page" json:"page,omitempty"`
+	Seconds       int64                  `protobuf:"varint,2,opt,name=seconds,proto3" json:"seconds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PageSlot) Reset() {
+	*x = PageSlot{}
+	mi := &file_display_display_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PageSlot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PageSlot) ProtoMessage() {}
+
+func (x *PageSlot) ProtoReflect() protoreflect.Message {
+	mi := &file_display_display_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PageSlot.ProtoReflect.Descriptor instead.
+func (*PageSlot) Descriptor() ([]byte, []int) {
+	return file_display_display_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PageSlot) GetPage() Page {
+	if x != nil {
+		return x.Page
+	}
+	return Page_PAGE_UNKNOWN
+}
+
+func (x *PageSlot) GetSeconds() int64 {
+	if x != nil {
+		return x.Seconds
+	}
+	return 0
+}
+
 var File_display_display_proto protoreflect.FileDescriptor
 
 const file_display_display_proto_rawDesc = "" +
 	"\n" +
 	"\x15display/display.proto\x12\adisplay\"\x13\n" +
-	"\x11StreamPageRequest\"\x92\x01\n" +
+	"\x11StreamPageRequest\"\xbb\x01\n" +
 	"\n" +
 	"PageUpdate\x12!\n" +
 	"\x04page\x18\x01 \x01(\x0e2\r.display.PageR\x04page\x12\x1d\n" +
 	"\n" +
 	"since_unix\x18\x02 \x01(\x03R\tsinceUnix\x12\x1b\n" +
 	"\tnext_unix\x18\x03 \x01(\x03R\bnextUnix\x12%\n" +
-	"\x0eperiod_seconds\x18\x04 \x01(\x03R\rperiodSeconds*_\n" +
+	"\x0eperiod_seconds\x18\x04 \x01(\x03R\rperiodSeconds\x12'\n" +
+	"\x05cycle\x18\x05 \x03(\v2\x11.display.PageSlotR\x05cycle\"G\n" +
+	"\bPageSlot\x12!\n" +
+	"\x04page\x18\x01 \x01(\x0e2\r.display.PageR\x04page\x12\x18\n" +
+	"\aseconds\x18\x02 \x01(\x03R\aseconds*t\n" +
 	"\x04Page\x12\x10\n" +
 	"\fPAGE_UNKNOWN\x10\x00\x12\x10\n" +
 	"\fPAGE_WEATHER\x10\x01\x12\x10\n" +
 	"\fPAGE_MARKETS\x10\x02\x12\x0f\n" +
 	"\vPAGE_METALS\x10\x03\x12\x10\n" +
-	"\fPAGE_PLANETS\x10\x042Q\n" +
+	"\fPAGE_PLANETS\x10\x04\x12\x13\n" +
+	"\x0fPAGE_MARKETS_6M\x10\x052Q\n" +
 	"\x0eDisplayService\x12?\n" +
 	"\n" +
 	"StreamPage\x12\x1a.display.StreamPageRequest\x1a\x13.display.PageUpdate0\x01B\x18Z\x16homeserver/gen/displayb\x06proto3"
@@ -220,21 +292,24 @@ func file_display_display_proto_rawDescGZIP() []byte {
 }
 
 var file_display_display_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_display_display_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_display_display_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_display_display_proto_goTypes = []any{
 	(Page)(0),                 // 0: display.Page
 	(*StreamPageRequest)(nil), // 1: display.StreamPageRequest
 	(*PageUpdate)(nil),        // 2: display.PageUpdate
+	(*PageSlot)(nil),          // 3: display.PageSlot
 }
 var file_display_display_proto_depIdxs = []int32{
 	0, // 0: display.PageUpdate.page:type_name -> display.Page
-	1, // 1: display.DisplayService.StreamPage:input_type -> display.StreamPageRequest
-	2, // 2: display.DisplayService.StreamPage:output_type -> display.PageUpdate
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3, // 1: display.PageUpdate.cycle:type_name -> display.PageSlot
+	0, // 2: display.PageSlot.page:type_name -> display.Page
+	1, // 3: display.DisplayService.StreamPage:input_type -> display.StreamPageRequest
+	2, // 4: display.DisplayService.StreamPage:output_type -> display.PageUpdate
+	4, // [4:5] is the sub-list for method output_type
+	3, // [3:4] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_display_display_proto_init() }
@@ -248,7 +323,7 @@ func file_display_display_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_display_display_proto_rawDesc), len(file_display_display_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

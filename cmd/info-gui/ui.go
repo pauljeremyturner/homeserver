@@ -24,6 +24,7 @@ import (
 	cryptopb "homeserver/gen/crypto"
 	displaypb "homeserver/gen/display"
 	weatherpb "homeserver/gen/weather"
+	"homeserver/internal/countdown"
 )
 
 var (
@@ -94,34 +95,44 @@ func (u *ui) layout(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 	if loc := u.location(s.weather); loc != nil {
 		now = now.In(loc)
 	}
-	paint.Fill(gtx.Ops, colBg)
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.header(gtx, now, s) }),
-		layout.Rigid(u.rule),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return u.page(gtx, now, s) }),
-	)
-}
-
-// page draws whichever page is showing below the header, fading between
-// them; the header itself never fades, so the clock stays steady.
-func (u *ui) page(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
-	page := u.forcePage
-	// The planets animate from when the page came up.
-	elapsed, period := u.forceElapsed, defaultPagePeriod
+	// Which page is up, and how far through its time on screen. A pinned
+	// page (-page, for screenshots) doesn't fade and is taken to be up for
+	// a minute.
+	page, elapsed, period, alpha := u.forcePage, u.forceElapsed, time.Minute, float32(1)
 	if page == displaypb.Page_PAGE_UNKNOWN {
 		var since, next time.Time
 		page, since, next = pageShowing(gtx.Now, s.page)
 		elapsed, period = gtx.Now.Sub(since), next.Sub(since)
-		alpha, wake := pageOpacity(gtx.Now, since, next)
+		var wake time.Time
+		alpha, wake = pageOpacity(gtx.Now, since, next)
 		gtx.Execute(op.InvalidateCmd{At: wake})
-		defer paint.PushOpacity(gtx.Ops, alpha).Pop()
 	}
+	paint.Fill(gtx.Ops, colBg)
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.header(gtx, now, s) }),
+		layout.Rigid(u.rule),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			defer paint.PushOpacity(gtx.Ops, alpha).Pop()
+			return u.page(gtx, now, s, page, elapsed, period)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return countdown.Layout(gtx, elapsed, period, u.forcePage == displaypb.Page_PAGE_UNKNOWN)
+		}),
+	)
+}
+
+// page draws page below the header, elapsed into its period on screen; the
+// header never fades with it, so the clock stays steady.
+func (u *ui) page(gtx layout.Context, now time.Time, s snapshot, page displaypb.Page, elapsed, period time.Duration) layout.Dimensions {
 	switch page {
 	case displaypb.Page_PAGE_PLANETS:
+		// The planets animate from when the page came up.
 		return u.planets(gtx, now, s.planets, elapsed, period)
 	// An older server still cycles through a separate metals page.
 	case displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_METALS:
-		return u.markets(gtx, now, s)
+		return u.markets(gtx, now, s, s.week)
+	case displaypb.Page_PAGE_MARKETS_6M:
+		return u.markets(gtx, now, s, s.halfYear)
 	}
 	return u.weather(gtx, now, s)
 }
@@ -678,9 +689,9 @@ type chartCard struct {
 	accent      color.NRGBA
 }
 
-// markets is a page of four price charts, crypto above metals, with the
-// wallet and the news below.
-func (u *ui) markets(gtx layout.Context, now time.Time, s snapshot) layout.Dimensions {
+// markets is a page of four price charts over one window (the week, or six
+// months), crypto above metals, with the wallet and the news below.
+func (u *ui) markets(gtx layout.Context, now time.Time, s snapshot, c coins) layout.Dimensions {
 	row := func(left, right chartCard) layout.FlexChild {
 		return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
@@ -694,11 +705,11 @@ func (u *ui) markets(gtx layout.Context, now time.Time, s snapshot) layout.Dimen
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: 14, Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					row(chartCard{"BTC / GBP", "", s.btc, colBTC},
-						chartCard{"ETH / GBP", "", s.eth, colETH}),
+					row(chartCard{"BTC / GBP", "", c.btc, colBTC},
+						chartCard{"ETH / GBP", "", c.eth, colETH}),
 					layout.Rigid(layout.Spacer{Height: 16}.Layout),
-					row(chartCard{"XAU / GBP", "gold, via PAXG", s.xau, colGold},
-						chartCard{"XAG / GBP", "silver, via KAG", s.xag, colSilver}),
+					row(chartCard{"XAU / GBP", "gold, via PAXG", c.xau, colGold},
+						chartCard{"XAG / GBP", "silver, via KAG", c.xag, colSilver}),
 				)
 			})
 		}),
@@ -731,7 +742,7 @@ func (u *ui) coin(gtx layout.Context, now time.Time, card chartCard) layout.Dime
 				layout.Rigid(heading),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					gtx.Constraints.Min.X = gtx.Constraints.Max.X
-					l := u.label(13, changeCol, font.Medium, fmt.Sprintf("%s %.1f%% 7d", arrow, math.Abs(c.ChangePct)))
+					l := u.label(13, changeCol, font.Medium, fmt.Sprintf("%s %.1f%% %s", arrow, math.Abs(c.ChangePct), windowName(c.Days)))
 					l.Alignment = text.End
 					return l.Layout(gtx)
 				}),
@@ -743,9 +754,22 @@ func (u *ui) coin(gtx layout.Context, now time.Time, card chartCard) layout.Dime
 	)
 }
 
+// windowName is how a change over a window of days is labelled: "7d", or
+// "6m" for 180 days. An older server doesn't say, and only sends the week.
+func windowName(days int32) string {
+	switch {
+	case days == 0:
+		return "7d"
+	case days >= 60 && days%30 == 0:
+		return fmt.Sprintf("%dm", days/30)
+	}
+	return fmt.Sprintf("%dd", days)
+}
+
 // priceChart draws a coin's price history filling the space it's given: a
 // line with a faint fill, a price axis of axisLabels round-number gridlines
-// labelled on the right, and the days along the bottom (in now's time zone).
+// labelled on the right, and along the bottom (in now's time zone) the days,
+// or the months for a history of more than a few weeks.
 func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpdate, accent color.NRGBA) layout.Dimensions {
 	size := gtx.Constraints.Max
 	dims := layout.Dimensions{Size: size}
@@ -774,20 +798,26 @@ func (u *ui) priceChart(gtx layout.Context, now time.Time, c *cryptopb.CryptoUpd
 	}
 	yAt := func(p float64) float32 { return top + (1-float32((p-lo)/(hi-lo)))*(bottom-top) }
 
-	// Day boundaries and names.
+	// Day (or month) boundaries and names, each name in the middle of its
+	// day (or month), if that's on the chart.
 	if times != nil {
 		loc := now.Location()
 		start := time.Unix(t0, 0).In(loc)
-		day := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc)
-		for ; day.Unix() < t1; day = day.AddDate(0, 0, 1) {
-			if day.Unix() > t0 {
-				x := float32(day.Unix()-t0) / float32(t1-t0) * w
+		period := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc)
+		step, format := func(t time.Time) time.Time { return t.AddDate(0, 0, 1) }, "Mon"
+		if t1-t0 > 21*24*3600 {
+			period = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
+			step, format = func(t time.Time) time.Time { return t.AddDate(0, 1, 0) }, "Jan"
+		}
+		for ; period.Unix() < t1; period = step(period) {
+			if period.Unix() > t0 {
+				x := float32(period.Unix()-t0) / float32(t1-t0) * w
 				strokeLine(gtx.Ops, colRule, float32(gtx.Dp(1)), f32.Pt(x, top), f32.Pt(x, float32(size.Y-dayRow)))
 			}
-			noon := day.Add(12 * time.Hour).Unix()
-			if noon > t0 && noon < t1 {
-				x := int(float32(noon-t0) / float32(t1-t0) * w)
-				u.labelAt(gtx, x, size.Y-dayRow/2, u.label(12, colFaint, font.Normal, day.Format("Mon")))
+			mid := period.Unix() + (step(period).Unix()-period.Unix())/2
+			if mid > t0 && mid < t1 {
+				x := int(float32(mid-t0) / float32(t1-t0) * w)
+				u.labelAt(gtx, x, size.Y-dayRow/2, u.label(12, colFaint, font.Normal, period.Format(format)))
 			}
 		}
 	}
@@ -877,10 +907,10 @@ func (u *ui) wallet(gtx layout.Context, s snapshot) layout.Dimensions {
 		layout.Rigid(layout.Spacer{Width: 18}.Layout),
 		layout.Rigid(u.label(22, colText, font.Medium, fmt.Sprintf("%.8f BTC", s.wallet.BalanceBtc)).Layout),
 	}
-	if s.btc != nil {
+	if btc := s.week.btc; btc != nil {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Width: 18}.Layout),
-			layout.Rigid(u.label(22, colBTC, font.Medium, "≈ £"+thousands(s.wallet.BalanceBtc*s.btc.Latest)).Layout))
+			layout.Rigid(u.label(22, colBTC, font.Medium, "≈ £"+thousands(s.wallet.BalanceBtc*btc.Latest)).Layout))
 	}
 	return layout.Inset{Bottom: 12, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Baseline}.Layout(gtx, children...)

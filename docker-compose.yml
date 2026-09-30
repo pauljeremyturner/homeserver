@@ -88,8 +88,10 @@ services:
       # WALLET_BTC_ADDRESS unset to disable it entirely (see .env.example).
       - WALLET_BTC_ADDRESS=${WALLET_BTC_ADDRESS}
       - WALLET_BTC_LABEL=${WALLET_BTC_LABEL}
-      # How long info-gui shows each page (weather, markets, planets) before switching.
+      # How long info-gui shows the weather and planets pages, and each of the
+      # two markets pages (the week, then six months), before switching.
       - PAGE_SECONDS=${INFO_PAGE_SECONDS:-60}
+      - MARKETS_PAGE_SECONDS=${INFO_MARKETS_PAGE_SECONDS:-30}
       # How many years the planets page animates, up to today (1-200; Mercury
       # blurs past ~50).
       - PLANETS_YEARS=${INFO_PLANETS_YEARS:-20}

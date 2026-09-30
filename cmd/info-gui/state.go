@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -25,10 +26,11 @@ const streamReconnectDelay = 5 * time.Second
 // the board temperature poller write it from their own goroutines; the
 // window loop reads a snapshot per frame.
 type state struct {
-	mu        sync.Mutex
-	weather   *weatherpb.WeatherUpdate
-	news      *newspb.NewsUpdate
-	crypto    map[string]*cryptopb.CryptoUpdate
+	mu      sync.Mutex
+	weather *weatherpb.WeatherUpdate
+	news    *newspb.NewsUpdate
+	// crypto[days][symbol] is a coin's prices over the last days.
+	crypto    map[int32]map[string]*cryptopb.CryptoUpdate
 	wallet    *cryptopb.WalletBalanceUpdate
 	planets   *planetspb.PlanetsUpdate
 	page      *displaypb.PageUpdate
@@ -39,20 +41,35 @@ type state struct {
 }
 
 type snapshot struct {
-	weather       *weatherpb.WeatherUpdate
-	news          *newspb.NewsUpdate
-	btc, eth      *cryptopb.CryptoUpdate
-	xau, xag      *cryptopb.CryptoUpdate
-	wallet        *cryptopb.WalletBalanceUpdate
-	planets       *planetspb.PlanetsUpdate
-	page          *displaypb.PageUpdate
-	boardTemp     float64
-	hasTemp       bool
-	serverVersion string
+	weather        *weatherpb.WeatherUpdate
+	news           *newspb.NewsUpdate
+	week, halfYear coins
+	wallet         *cryptopb.WalletBalanceUpdate
+	planets        *planetspb.PlanetsUpdate
+	page           *displaypb.PageUpdate
+	boardTemp      float64
+	hasTemp        bool
+	serverVersion  string
 }
 
+// coins is one window of prices for each coin and metal shown.
+type coins struct {
+	btc, eth, xau, xag *cryptopb.CryptoUpdate
+}
+
+// The windows of prices the two markets pages show, in days.
+const weekDays, halfYearDays = 7, 180
+
 func newState() *state {
-	return &state{crypto: make(map[string]*cryptopb.CryptoUpdate)}
+	return &state{crypto: map[int32]map[string]*cryptopb.CryptoUpdate{
+		weekDays:     make(map[string]*cryptopb.CryptoUpdate),
+		halfYearDays: make(map[string]*cryptopb.CryptoUpdate),
+	}}
+}
+
+func (s *state) coins(days int32) coins {
+	m := s.crypto[days]
+	return coins{btc: m["BTC"], eth: m["ETH"], xau: m["XAU"], xag: m["XAG"]}
 }
 
 func (s *state) update(f func(*state)) {
@@ -67,10 +84,8 @@ func (s *state) snapshot() snapshot {
 	return snapshot{
 		weather:   s.weather,
 		news:      s.news,
-		btc:       s.crypto["BTC"],
-		eth:       s.crypto["ETH"],
-		xau:       s.crypto["XAU"],
-		xag:       s.crypto["XAG"],
+		week:      s.coins(weekDays),
+		halfYear:  s.coins(halfYearDays),
 		wallet:    s.wallet,
 		planets:   s.planets,
 		page:      s.page,
@@ -137,12 +152,14 @@ func startStreams(ctx context.Context, addr string, s *state, changed func()) er
 		},
 		func(u *newspb.NewsUpdate) { s.update(func(s *state) { s.news = u }); changed() },
 	)
-	go streamLoop(ctx, s, "crypto",
-		func(ctx context.Context) (grpc.ServerStreamingClient[cryptopb.CryptoUpdate], error) {
-			return cryptoClient.StreamCrypto(ctx, &cryptopb.StreamCryptoRequest{})
-		},
-		func(u *cryptopb.CryptoUpdate) { s.update(func(s *state) { s.crypto[u.Symbol] = u }); changed() },
-	)
+	for _, days := range []int32{weekDays, halfYearDays} {
+		go streamLoop(ctx, s, fmt.Sprintf("crypto %dd", days),
+			func(ctx context.Context) (grpc.ServerStreamingClient[cryptopb.CryptoUpdate], error) {
+				return cryptoClient.StreamCrypto(ctx, &cryptopb.StreamCryptoRequest{Days: days})
+			},
+			func(u *cryptopb.CryptoUpdate) { s.update(func(s *state) { s.crypto[days][u.Symbol] = u }); changed() },
+		)
+	}
 	go streamLoop(ctx, s, "wallet",
 		func(ctx context.Context) (grpc.ServerStreamingClient[cryptopb.WalletBalanceUpdate], error) {
 			return cryptoClient.StreamWalletBalance(ctx, &cryptopb.StreamWalletBalanceRequest{})

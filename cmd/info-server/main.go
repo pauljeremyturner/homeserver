@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"homeserver/internal/broadcast"
 
@@ -24,6 +26,12 @@ const (
 	weatherInterval = 15 * time.Minute
 	newsInterval    = 15 * time.Minute
 	cryptoInterval  = 30 * time.Minute
+	// CoinGecko's keyless API throttles bursts, so its requests go one at a
+	// time cryptoGap apart, and a throttled one is retried after
+	// cryptoRetry, up to cryptoTries times a round.
+	cryptoGap   = 10 * time.Second
+	cryptoRetry = 2 * time.Minute
+	cryptoTries = 3
 )
 
 type coinConfig struct {
@@ -40,6 +48,10 @@ var trackedCoins = []coinConfig{
 	{"pax-gold", "XAU"},
 	{"kinesis-silver", "XAG"},
 }
+
+// cryptoWindows are the spans of prices fetched for every tracked coin, in
+// days: the week and six months, for the two markets pages.
+var cryptoWindows = []int{7, 180}
 
 // version is set at build time (-ldflags "-X main.version=...") and sent to
 // clients as "server-version" header metadata on every stream.
@@ -63,10 +75,8 @@ func main() {
 	addr := envOr("LISTEN_ADDR", ":9090")
 	walletAddr := os.Getenv("WALLET_BTC_ADDRESS")
 	walletLabel := envOr("WALLET_BTC_LABEL", "BTC Wallet")
-	pageSeconds, err := strconv.Atoi(envOr("PAGE_SECONDS", "60"))
-	if err != nil || pageSeconds <= 0 {
-		log.Fatalf("PAGE_SECONDS must be a positive number of seconds, got %q", os.Getenv("PAGE_SECONDS"))
-	}
+	pageSeconds := positiveEnv("PAGE_SECONDS", 60)
+	marketsSeconds := positiveEnv("MARKETS_PAGE_SECONDS", 30)
 	// The planets' elements are only good from 1800, and past ~50 years
 	// Mercury laps too fast for a display's animation to follow.
 	planetsYears, err := strconv.Atoi(envOr("PLANETS_YEARS", "20"))
@@ -76,9 +86,13 @@ func main() {
 
 	weatherBC := broadcast.New[*weatherpb.WeatherUpdate]()
 	newsBC := broadcast.New[*newspb.NewsUpdate]()
-	cryptoBCs := make(map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate], len(trackedCoins))
-	for _, c := range trackedCoins {
-		cryptoBCs[c.symbol] = broadcast.New[*cryptopb.CryptoUpdate]()
+	// cryptoBCs[days][symbol] carries one coin's prices over one window.
+	cryptoBCs := make(map[int]map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate], len(cryptoWindows))
+	for _, days := range cryptoWindows {
+		cryptoBCs[days] = make(map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate], len(trackedCoins))
+		for _, c := range trackedCoins {
+			cryptoBCs[days][c.symbol] = broadcast.New[*cryptopb.CryptoUpdate]()
+		}
 	}
 	walletBC := broadcast.New[*cryptopb.WalletBalanceUpdate]()
 	planetsBC := broadcast.New[*planetspb.PlanetsUpdate]()
@@ -87,10 +101,8 @@ func main() {
 	go pollWeather(weatherBC)
 	go pollNews(newsBC)
 	go pollPlanets(planetsBC, planetsYears)
-	go cyclePages(pageBC, time.Duration(pageSeconds)*time.Second)
-	for _, c := range trackedCoins {
-		go pollCrypto(c, cryptoBCs[c.symbol])
-	}
+	go cyclePages(pageBC, pageCycle(pageSeconds, marketsSeconds))
+	go pollCrypto(cryptoBCs)
 	if walletAddr != "" {
 		go pollWallet(walletAddr, walletLabel, walletBC)
 	} else {
@@ -145,18 +157,55 @@ func pollNews(bc *broadcast.Broadcaster[*newspb.NewsUpdate]) {
 	}
 }
 
-func pollCrypto(c coinConfig, bc *broadcast.Broadcaster[*cryptopb.CryptoUpdate]) {
-	poll := func() {
-		update, err := fetchCryptoWeek(c.id, c.symbol)
-		if err != nil {
-			log.Printf("crypto %s: fetch failed: %v", c.symbol, err)
-			return
-		}
-		bc.Publish(update)
+// positiveEnv reads a positive whole number of seconds from the environment.
+func positiveEnv(key string, fallback int) int {
+	n, err := strconv.Atoi(envOr(key, strconv.Itoa(fallback)))
+	if err != nil || n <= 0 {
+		log.Fatalf("%s must be a positive number of seconds, got %q", key, os.Getenv(key))
 	}
-	poll()
-	for range time.Tick(cryptoInterval) {
-		poll()
+	return n
+}
+
+// pollCrypto fetches every window of every tracked coin's prices, the
+// week's first, one request at a time (see cryptoGap), every
+// cryptoInterval.
+func pollCrypto(bcs map[int]map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate]) {
+	type fetch struct {
+		c    coinConfig
+		days int
+	}
+	var all []fetch
+	for _, days := range cryptoWindows {
+		for _, c := range trackedCoins {
+			all = append(all, fetch{c, days})
+		}
+	}
+	for {
+		start := time.Now()
+		todo := all
+		for try := 1; len(todo) > 0; try++ {
+			if try > 1 {
+				time.Sleep(cryptoRetry)
+			}
+			var failed []fetch
+			for i, f := range todo {
+				if i > 0 {
+					time.Sleep(cryptoGap)
+				}
+				update, err := fetchCrypto(f.c.id, f.c.symbol, f.days)
+				if err != nil {
+					log.Printf("crypto %s %dd: fetch failed (try %d of %d): %v", f.c.symbol, f.days, try, cryptoTries, err)
+					failed = append(failed, f)
+					continue
+				}
+				bcs[f.days][f.c.symbol].Publish(update)
+			}
+			if try == cryptoTries {
+				break
+			}
+			todo = failed
+		}
+		time.Sleep(time.Until(start.Add(cryptoInterval)))
 	}
 }
 
@@ -217,7 +266,7 @@ func pollWallet(address, label string, bc *broadcast.Broadcaster[*cryptopb.Walle
 
 type cryptoServer struct {
 	cryptopb.UnimplementedCryptoServiceServer
-	bcs      map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate]
+	bcs      map[int]map[string]*broadcast.Broadcaster[*cryptopb.CryptoUpdate]
 	walletBC *broadcast.Broadcaster[*cryptopb.WalletBalanceUpdate]
 }
 
@@ -239,15 +288,24 @@ func (s *cryptoServer) StreamWalletBalance(_ *cryptopb.StreamWalletBalanceReques
 	}
 }
 
-// StreamCrypto fans in every tracked coin's broadcaster into one output
-// stream, so a client gets BTC and ETH (and anything else tracked) over a
-// single subscription, each last-known value delivered immediately on connect.
-func (s *cryptoServer) StreamCrypto(_ *cryptopb.StreamCryptoRequest, stream cryptopb.CryptoService_StreamCryptoServer) error {
+// StreamCrypto fans in every tracked coin's broadcaster for the requested
+// window into one output stream, so a client gets BTC and ETH (and anything
+// else tracked) over a single subscription, each last-known value delivered
+// immediately on connect.
+func (s *cryptoServer) StreamCrypto(req *cryptopb.StreamCryptoRequest, stream cryptopb.CryptoService_StreamCryptoServer) error {
+	days := int(req.Days)
+	if days == 0 {
+		days = 7 // older clients don't say
+	}
+	bcs, ok := s.bcs[days]
+	if !ok {
+		return status.Errorf(codes.InvalidArgument, "no %d-day prices; ask for one of %v", days, cryptoWindows)
+	}
 	out := make(chan *cryptopb.CryptoUpdate)
 	done := make(chan struct{})
 	defer close(done)
 
-	for _, bc := range s.bcs {
+	for _, bc := range bcs {
 		ch := bc.Subscribe()
 		defer bc.Unsubscribe(ch)
 		go func(ch chan *cryptopb.CryptoUpdate) {

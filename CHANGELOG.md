@@ -3,7 +3,30 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
-## Unreleased
+## 1.9.0 - 2026-09-30
+
+### Added
+- info-gui: a second markets page, the same four charts over six months
+  (daily prices, months along the bottom, change marked "6m"), shown after
+  the week's.
+- info-gui and photo-gui: a line along the bottom of every page (and
+  photo) counting down its time on screen, white for what's left and grey
+  from the right for what's gone, worked out on the display from the
+  page's times (`internal/countdown`), redrawn each time it moves a pixel.
+- info-server: the page rotation is weather 60s, markets (week) 30s,
+  markets (six months) 30s, planets 60s: `PAGE_SECONDS` (compose
+  `INFO_PAGE_SECONDS`) now sets the weather and planets pages only, and
+  the new `MARKETS_PAGE_SECONDS` (`INFO_MARKETS_PAGE_SECONDS`, default 30)
+  each markets page. `PageUpdate.cycle` carries the whole rotation, so a
+  display that loses the server keeps to it (`internal/pagecycle`).
+- proto: `StreamCryptoRequest.days` picks the window of prices, 7 (the
+  default, so older clients are unchanged) or 180, and `CryptoUpdate.days`
+  says which; `PAGE_MARKETS_6M` is the new page.
+
+### Changed
+- info-server: CoinGecko is asked one request at a time, 10s apart, with
+  throttled requests retried after 2 minutes (up to 3 tries), as eight
+  requests at once got throttled; a non-200 reply is now logged as such.
 
 ### Fixed
 - info-server: an hour Open-Meteo codes as rain, snow or thunder but gives

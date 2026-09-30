@@ -7,7 +7,8 @@ option go_package = "homeserver/gen/crypto";
 service CryptoService {
   // StreamCrypto pushes a CryptoUpdate per coin whenever the server refreshes
   // its data (currently every 30 minutes), immediately sending the last
-  // known value for each tracked coin on subscribe.
+  // known value for each tracked coin on subscribe. The request picks the
+  // window: the last week (the default) or the last six months.
   rpc StreamCrypto(StreamCryptoRequest) returns (stream CryptoUpdate);
 
   // StreamWalletBalance pushes the configured wallet's on-chain balance
@@ -16,17 +17,23 @@ service CryptoService {
   rpc StreamWalletBalance(StreamWalletBalanceRequest) returns (stream WalletBalanceUpdate);
 }
 
-message StreamCryptoRequest {}
+message StreamCryptoRequest {
+  // days is the window of prices wanted: 7 (or 0, for older clients) for
+  // the last week, hourly; 180 for the last six months, daily. Anything
+  // else is an InvalidArgument error.
+  int32 days = 1;
+}
 
 message CryptoUpdate {
   string symbol = 1; // e.g. "BTC", "ETH", or "XAU"/"XAG" for gold/silver
   int64 fetched_at_unix = 2;
-  repeated double prices = 3; // hourly prices vs GBP over 7 days, oldest first
+  repeated double prices = 3; // prices vs GBP over the window, oldest first
   double latest = 4;
   double change_pct = 5; // change over the price series window
   double min = 6;
   double max = 7;
   repeated int64 times_unix = 8; // when each of prices was, same length
+  int32 days = 9; // the window, as asked for in StreamCryptoRequest
 }
 
 message StreamWalletBalanceRequest {}

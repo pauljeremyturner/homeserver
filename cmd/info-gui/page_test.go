@@ -9,29 +9,36 @@ import (
 )
 
 func TestPageShowing(t *testing.T) {
-	even := time.Date(2026, 9, 27, 15, 24, 0, 0, time.UTC) // a multiple of 3 periods since the epoch
-	per := defaultPagePeriod
-	weather, markets, planets := displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_PLANETS
+	even := time.Date(2026, 9, 27, 15, 24, 0, 0, time.UTC) // a whole number of 3-minute rotations since the epoch
+	weather, markets, markets6m, planets := displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_MARKETS_6M, displaypb.Page_PAGE_PLANETS
 
-	// With no word from the server, pages cycle each period on the clock.
-	if p, since, next := pageShowing(even.Add(per/3), nil); p != weather || !since.Equal(even) || !next.Equal(even.Add(defaultPagePeriod)) {
-		t.Errorf("no server, first period: got %v %v %v", p, since, next)
+	// With no word from the server, the default rotation runs on the clock.
+	if p, since, next := pageShowing(even.Add(20*time.Second), nil); p != weather || !since.Equal(even) || !next.Equal(even.Add(time.Minute)) {
+		t.Errorf("no server, first page: got %v %v %v", p, since, next)
 	}
-	if p, _, _ := pageShowing(even.Add(per+per/3), nil); p != markets {
-		t.Errorf("no server, second period: got %v, want markets", p)
-	}
-	if p, _, _ := pageShowing(even.Add(2*per+per/3), nil); p != planets {
-		t.Errorf("no server, third period: got %v, want planets", p)
+	for _, c := range []struct {
+		at   time.Duration
+		want displaypb.Page
+	}{{70 * time.Second, markets}, {100 * time.Second, markets6m}, {150 * time.Second, planets}, {190 * time.Second, weather}} {
+		if p, _, _ := pageShowing(even.Add(c.at), nil); p != c.want {
+			t.Errorf("no server, +%v: got %v, want %v", c.at, p, c.want)
+		}
 	}
 
 	// The server's page wins while it's current, even against the clock.
-	u := &displaypb.PageUpdate{Page: markets, SinceUnix: even.Unix(), NextUnix: even.Add(30 * time.Second).Unix(), PeriodSeconds: 30}
-	if p, _, next := pageShowing(even.Add(10*time.Second), u); p != markets || !next.Equal(even.Add(30*time.Second)) {
+	cycle := []*displaypb.PageSlot{{Page: markets, Seconds: 30}, {Page: planets, Seconds: 30}}
+	u := &displaypb.PageUpdate{Page: planets, SinceUnix: even.Unix(), NextUnix: even.Add(30 * time.Second).Unix(), PeriodSeconds: 30, Cycle: cycle}
+	if p, _, next := pageShowing(even.Add(10*time.Second), u); p != planets || !next.Equal(even.Add(30*time.Second)) {
 		t.Errorf("server page: got %v until %v", p, next)
 	}
-	// Once it's overdue, the client carries on with the server's period.
-	if p, since, _ := pageShowing(even.Add(31*time.Second), u); p != markets || !since.Equal(even.Add(30*time.Second)) {
+	// Once it's overdue, the client carries on with the server's rotation.
+	if p, since, _ := pageShowing(even.Add(31*time.Second), u); p != planets || !since.Equal(even.Add(30*time.Second)) {
 		t.Errorf("overdue server page: got %v since %v", p, since)
+	}
+	// An older server sends no rotation; the default one takes over.
+	u.Cycle = nil
+	if p, _, _ := pageShowing(even.Add(70*time.Second), u); p != markets {
+		t.Errorf("overdue page from an older server: got %v, want markets", p)
 	}
 }
 

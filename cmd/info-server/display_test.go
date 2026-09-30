@@ -10,18 +10,24 @@ import (
 
 func TestPageAt(t *testing.T) {
 	start := time.Date(2026, 9, 27, 15, 24, 0, 0, time.UTC) // minute divisible by 3
-	u := pageAt(start.Add(59*time.Second), time.Minute)
-	if u.Page != displaypb.Page_PAGE_WEATHER || u.SinceUnix != start.Unix() || u.NextUnix != start.Add(time.Minute).Unix() || u.PeriodSeconds != 60 {
+	cycle := pageCycle(60, 30)
+	u := pageAt(start.Add(59*time.Second), cycle)
+	if u.Page != displaypb.Page_PAGE_WEATHER || u.SinceUnix != start.Unix() || u.NextUnix != start.Add(time.Minute).Unix() || u.PeriodSeconds != 60 || len(u.Cycle) != 4 {
 		t.Errorf("first minute: %v", u)
 	}
-	if u := pageAt(start.Add(time.Minute), time.Minute); u.Page != displaypb.Page_PAGE_MARKETS {
-		t.Errorf("second minute: %v", u.Page)
-	}
-	if u := pageAt(start.Add(2*time.Minute), time.Minute); u.Page != displaypb.Page_PAGE_PLANETS {
-		t.Errorf("third minute: %v", u.Page)
-	}
-	if u := pageAt(start.Add(3*time.Minute), time.Minute); u.Page != displaypb.Page_PAGE_WEATHER {
-		t.Errorf("fourth minute: %v", u.Page)
+	for _, c := range []struct {
+		at     time.Duration
+		page   displaypb.Page
+		period int64
+	}{
+		{60 * time.Second, displaypb.Page_PAGE_MARKETS, 30},
+		{90 * time.Second, displaypb.Page_PAGE_MARKETS_6M, 30},
+		{2 * time.Minute, displaypb.Page_PAGE_PLANETS, 60},
+		{3 * time.Minute, displaypb.Page_PAGE_WEATHER, 60},
+	} {
+		if u := pageAt(start.Add(c.at), cycle); u.Page != c.page || u.PeriodSeconds != c.period {
+			t.Errorf("at +%v: %v for %ds", c.at, u.Page, u.PeriodSeconds)
+		}
 	}
 }
 

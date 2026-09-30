@@ -29,7 +29,8 @@ const (
 type CryptoServiceClient interface {
 	// StreamCrypto pushes a CryptoUpdate per coin whenever the server refreshes
 	// its data (currently every 30 minutes), immediately sending the last
-	// known value for each tracked coin on subscribe.
+	// known value for each tracked coin on subscribe. The request picks the
+	// window: the last week (the default) or the last six months.
 	StreamCrypto(ctx context.Context, in *StreamCryptoRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CryptoUpdate], error)
 	// StreamWalletBalance pushes the configured wallet's on-chain balance
 	// whenever the server refreshes it. If no wallet is configured server-side,
@@ -89,7 +90,8 @@ type CryptoService_StreamWalletBalanceClient = grpc.ServerStreamingClient[Wallet
 type CryptoServiceServer interface {
 	// StreamCrypto pushes a CryptoUpdate per coin whenever the server refreshes
 	// its data (currently every 30 minutes), immediately sending the last
-	// known value for each tracked coin on subscribe.
+	// known value for each tracked coin on subscribe. The request picks the
+	// window: the last week (the default) or the last six months.
 	StreamCrypto(*StreamCryptoRequest, grpc.ServerStreamingServer[CryptoUpdate]) error
 	// StreamWalletBalance pushes the configured wallet's on-chain balance
 	// whenever the server refreshes it. If no wallet is configured server-side,

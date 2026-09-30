@@ -21,6 +21,7 @@ enum Page {
   // PAGE_MARKETS; no longer sent.
   PAGE_METALS = 3;
   PAGE_PLANETS = 4; // the planets over the last years, then today
+  PAGE_MARKETS_6M = 5; // PAGE_MARKETS with six months of prices, not a week
 }
 
 message PageUpdate {
@@ -29,5 +30,15 @@ message PageUpdate {
   // next_unix is when the page will next change, so a client that loses
   // the stream can keep cycling on its own clock.
   int64 next_unix = 3;
+  // period_seconds is how long this page shows for (pages can differ).
   int64 period_seconds = 4;
+  // cycle is the whole rotation, in order, so a client that loses the
+  // stream carries on with the same pages and timings; it's anchored to
+  // the Unix epoch, repeating every sum of the slots' seconds.
+  repeated PageSlot cycle = 5;
+}
+
+message PageSlot {
+  Page page = 1;
+  int64 seconds = 2;
 }

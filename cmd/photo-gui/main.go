@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	photopb "homeserver/gen/photo"
+	"homeserver/internal/countdown"
 )
 
 // version is set at build time by build.sh (-ldflags "-X main.version=...").
@@ -78,10 +79,12 @@ func main() {
 	app.Main()
 }
 
-// shown is a decoded photo and when it arrived, for the fade in.
+// shown is a decoded photo, when it arrived, for the fade in, and when the
+// server picked it and will move on, for the countdown line.
 type shown struct {
-	img     paint.ImageOp
-	arrived time.Time
+	img         paint.ImageOp
+	arrived     time.Time
+	since, next time.Time
 }
 
 // state holds the current photo and the one it's fading from; the stream
@@ -91,10 +94,10 @@ type state struct {
 	cur, prev *shown
 }
 
-func (s *state) set(img image.Image) {
+func (s *state) set(img image.Image, since, next time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.prev, s.cur = s.cur, &shown{img: paint.NewImageOp(img), arrived: time.Now()}
+	s.prev, s.cur = s.cur, &shown{img: paint.NewImageOp(img), arrived: time.Now(), since: since, next: next}
 }
 
 func (s *state) current() *shown {
@@ -130,7 +133,7 @@ func stream(ctx context.Context, c photopb.PhotoServiceClient, w, h int, s *stat
 					log.Printf("photo %s: %v", p.Name, err)
 					continue
 				}
-				s.set(img)
+				s.set(img, time.Unix(p.SinceUnix, 0), time.Unix(p.NextUnix, 0))
 				changed()
 			}
 		} else {
@@ -161,15 +164,16 @@ func run(w *app.Window, c photopb.PhotoServiceClient, s *state) error {
 				go stream(context.Background(), c, e.Size.X, e.Size.Y, s, w.Invalidate)
 			}
 			gtx := app.NewContext(&ops, e)
-			draw(gtx, th, s)
+			draw(gtx, th, s, true)
 			e.Frame(gtx.Ops)
 		}
 	}
 }
 
 // draw shows the current photo as large as fits, centred on black, fading
-// in over the previous one.
-func draw(gtx layout.Context, th *material.Theme, s *state) {
+// in over the previous one, with a line along the bottom counting down to
+// the next (redrawn as it moves when live).
+func draw(gtx layout.Context, th *material.Theme, s *state, live bool) {
 	paint.Fill(gtx.Ops, rgbBlack)
 	cur, prev := s.both()
 	if cur == nil {
@@ -186,6 +190,10 @@ func draw(gtx layout.Context, th *material.Theme, s *state) {
 		}
 	}
 	photo(gtx, cur.img, min(max(alpha, 0), 1))
+	if cur.next.After(cur.since) {
+		defer op.Offset(image.Pt(0, gtx.Constraints.Max.Y-gtx.Dp(countdown.Height))).Push(gtx.Ops).Pop()
+		countdown.Layout(gtx, gtx.Now.Sub(cur.since), cur.next.Sub(cur.since), live)
+	}
 }
 
 func photo(gtx layout.Context, img paint.ImageOp, alpha float32) {
@@ -216,10 +224,10 @@ func screenshot(path string, s *state, width, height int) error {
 		Ops:         &ops,
 		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
 		Constraints: layout.Exact(image.Pt(width, height)),
-		// Well past any fade.
-		Now: time.Now().Add(time.Minute),
+		// Past the fade in.
+		Now: time.Now().Add(fadeTime),
 	}
-	draw(gtx, th, s)
+	draw(gtx, th, s, false)
 	if err := win.Frame(&ops); err != nil {
 		return err
 	}

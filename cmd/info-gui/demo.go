@@ -42,10 +42,20 @@ func fillDemo(s *state) {
 				{RiseUnix: now + 20*3600, SetUnix: now + 33*3600},
 			},
 		}
-		s.crypto["BTC"] = demoCoin("BTC", now, 83000, 4.7, 1)
-		s.crypto["ETH"] = demoCoin("ETH", now, 3310, -4.3, 2)
-		s.crypto["XAU"] = demoCoin("XAU", now, 3190, 1.2, 3)
-		s.crypto["XAG"] = demoCoin("XAG", now, 47.9, 2.1, 4)
+		for _, c := range []struct {
+			sym                   string
+			start, week, halfYear float64 // price a week ago; % change over each window
+		}{
+			{"BTC", 83000, 4.7, 18.5},
+			{"ETH", 3310, -4.3, -12.1},
+			{"XAU", 3190, 1.2, 9.4},
+			{"XAG", 47.9, 2.1, 15.8},
+		} {
+			wk := demoCoin(c.sym, now, c.start, c.week, weekDays)
+			s.crypto[weekDays][c.sym] = wk
+			// Six months ending at the same price as the week.
+			s.crypto[halfYearDays][c.sym] = demoCoin(c.sym, now, wk.Latest/(1+c.halfYear/100), c.halfYear, halfYearDays)
+		}
 		s.planets = demoPlanets(time.Unix(now, 0))
 		s.wallet = &cryptopb.WalletBalanceUpdate{Label: "BTC Wallet", FetchedAtUnix: now, BalanceBtc: 0.04215, BalanceSats: 4215000}
 		s.news = &newspb.NewsUpdate{FetchedAtUnix: now, Headlines: []string{
@@ -136,18 +146,23 @@ func demoPlanets(t time.Time) *planetspb.PlanetsUpdate {
 	return u
 }
 
-// demoCoin makes a week of hourly prices, starting at start and ending
-// changePct higher, with some made-up wobble.
-func demoCoin(sym string, now int64, start, changePct, seed float64) *cryptopb.CryptoUpdate {
-	const hours = 168
-	c := &cryptopb.CryptoUpdate{Symbol: sym, FetchedAtUnix: now, ChangePct: changePct}
-	for i := 0; i <= hours; i++ {
-		f := float64(i) / hours
+// demoCoin makes days of prices, hourly for a week and daily beyond, as
+// CoinGecko sends them, starting at start and ending changePct higher, with
+// some made-up wobble.
+func demoCoin(sym string, now int64, start, changePct float64, days int32) *cryptopb.CryptoUpdate {
+	points, spacing := int(days)*24, int64(3600)
+	if days > 90 {
+		points, spacing = int(days), 86400
+	}
+	seed := float64(len(sym)) + float64(sym[0]%7)
+	c := &cryptopb.CryptoUpdate{Symbol: sym, FetchedAtUnix: now, ChangePct: changePct, Days: days}
+	for i := 0; i <= points; i++ {
+		f := float64(i) / float64(points)
 		p := start * (1 + changePct/100*f + 0.02*math.Sin(f*9+seed) + 0.008*math.Sin(f*53*seed))
 		c.Prices = append(c.Prices, p)
-		c.TimesUnix = append(c.TimesUnix, now-int64(hours-i)*3600)
+		c.TimesUnix = append(c.TimesUnix, now-int64(points-i)*spacing)
 	}
-	c.Latest = c.Prices[hours]
+	c.Latest = c.Prices[points]
 	c.Min, c.Max = c.Prices[0], c.Prices[0]
 	for _, p := range c.Prices {
 		c.Min, c.Max = min(c.Min, p), max(c.Max, p)

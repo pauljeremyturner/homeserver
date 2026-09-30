@@ -33,7 +33,7 @@ func main() {
 	demo := flag.Bool("demo", false, "use built-in sample data instead of info-server")
 	shot := flag.String("screenshot", "", "render one 1024x600 frame to this PNG and exit")
 	kiosk := flag.Bool("kiosk", false, "full screen with no window decorations (for cage)")
-	page := flag.Int("page", 0, "with -screenshot: render page 1 (weather), 2 (markets) or 4 (planets)")
+	page := flag.Int("page", 0, "with -screenshot: render page 1 (weather), 2 (markets, the week), 4 (planets) or 5 (markets, six months)")
 	anim := flag.Duration("anim", time.Hour, "with -screenshot -page 4: how long the page has been up (default: animation finished)")
 	at := flag.String("time", "", "with -screenshot: render as if the clock read this HH:MM today")
 	wait := flag.Duration("wait", 4*time.Second, "with -screenshot and live data: how long to wait for the streams first")

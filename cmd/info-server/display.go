@@ -5,29 +5,38 @@ import (
 
 	displaypb "homeserver/gen/display"
 	"homeserver/internal/broadcast"
+	"homeserver/internal/pagecycle"
 )
 
-// pageCycle is the order displays show their pages in.
-var pageCycle = []displaypb.Page{displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_PLANETS}
-
-// pageAt is the page showing at t when each page is shown for period, with
-// the cycle anchored to the Unix epoch so it lines up with the clock (with
-// a 60s period and three pages, the weather page shows on minutes divisible
-// by three).
-func pageAt(t time.Time, period time.Duration) *displaypb.PageUpdate {
-	n := t.UnixNano() / int64(period)
-	since := time.Unix(0, n*int64(period))
-	return &displaypb.PageUpdate{
-		Page:          pageCycle[n%int64(len(pageCycle))],
-		SinceUnix:     since.Unix(),
-		NextUnix:      since.Add(period).Unix(),
-		PeriodSeconds: int64(period / time.Second),
+// pageCycle is the order displays show their pages in and for how long:
+// the weather and planets for pageSeconds each, and the two markets pages,
+// the week's prices then six months', for marketsSeconds each. With the
+// default 60+30+30+60s, the weather page shows on minutes divisible by
+// three.
+func pageCycle(pageSeconds, marketsSeconds int) []*displaypb.PageSlot {
+	return []*displaypb.PageSlot{
+		{Page: displaypb.Page_PAGE_WEATHER, Seconds: int64(pageSeconds)},
+		{Page: displaypb.Page_PAGE_MARKETS, Seconds: int64(marketsSeconds)},
+		{Page: displaypb.Page_PAGE_MARKETS_6M, Seconds: int64(marketsSeconds)},
+		{Page: displaypb.Page_PAGE_PLANETS, Seconds: int64(pageSeconds)},
 	}
 }
 
-func cyclePages(bc *broadcast.Broadcaster[*displaypb.PageUpdate], period time.Duration) {
+// pageAt is the PageUpdate for the page showing at t.
+func pageAt(t time.Time, cycle []*displaypb.PageSlot) *displaypb.PageUpdate {
+	page, since, next := pagecycle.At(t, cycle)
+	return &displaypb.PageUpdate{
+		Page:          page,
+		SinceUnix:     since.Unix(),
+		NextUnix:      next.Unix(),
+		PeriodSeconds: next.Unix() - since.Unix(),
+		Cycle:         cycle,
+	}
+}
+
+func cyclePages(bc *broadcast.Broadcaster[*displaypb.PageUpdate], cycle []*displaypb.PageSlot) {
 	for {
-		u := pageAt(time.Now(), period)
+		u := pageAt(time.Now(), cycle)
 		bc.Publish(u)
 		time.Sleep(time.Until(time.Unix(u.NextUnix, 0)))
 	}
