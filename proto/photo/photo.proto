@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package photo;
+
+option go_package = "homeserver/gen/photo";
+
+service PhotoService {
+  // StreamPhotos sends the photo showing now on subscribe, then each new
+  // one as the server moves on (every PHOTO_SECONDS), shrunk to fit the
+  // requested size so a small display never decodes a full-size photo.
+  // Every display is shown the same photo at the same time.
+  rpc StreamPhotos(StreamPhotosRequest) returns (stream Photo);
+}
+
+message StreamPhotosRequest {
+  // width and height are the display's size in pixels; the photo is
+  // shrunk (never enlarged) to fit inside them. 0 means no limit.
+  int32 width = 1;
+  int32 height = 2;
+}
+
+message Photo {
+  // jpeg is the photo, upright (EXIF orientation applied).
+  bytes jpeg = 1;
+  // name is the photo's path within the photos directory.
+  string name = 2;
+  // since_unix and next_unix are when the photo was picked and when the
+  // next one is due.
+  int64 since_unix = 3;
+  int64 next_unix = 4;
+}

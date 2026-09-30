@@ -3,6 +3,17 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.7.0 - 2026-09-30
+
+### Added
+- photo-server: a new compose service streaming a random photo from
+  `/home/paul/Pictures` (`PHOTOS_DIR` in `.env` overrides it; skipping
+  `Screenshots` and hidden folders) every
+  `PHOTO_SECONDS` (default 60), upright and shrunk to each display's size,
+  every photo once before any repeats.
+- photo-gui: a photo frame for the Tinker Board under cage, fading between
+  photos; `photo-gui.service` runs it on tty1 in place of info-gui.
+
 ## 1.6.0 - 2026-09-30
 
 ### Added

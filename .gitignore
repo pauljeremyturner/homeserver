@@ -9,3 +9,4 @@
 !/config/**/
 !/config/**/.gitkeep
 /cmd/info-gui/bin/
+/cmd/photo-gui/bin/

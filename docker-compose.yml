@@ -95,6 +95,24 @@ services:
       - PLANETS_YEARS=${INFO_PLANETS_YEARS:-20}
     restart: unless-stopped
 
+  photo-server:
+    build:
+      context: .
+      dockerfile: cmd/photo-server/Dockerfile
+      args:
+        - VERSION=${VERSION:-dev}
+    container_name: photo-server
+    ports:
+      - 9092:9092
+    volumes:
+      # PHOTOS_DIR in .env overrides where the photos are. Read-only; shared
+      # label so the desktop can keep adding photos.
+      - ${PHOTOS_DIR:-/home/paul/Pictures}:/photos:ro,z
+    environment:
+      # How long photo-gui shows each photo.
+      - PHOTO_SECONDS=${PHOTO_SECONDS:-60}
+    restart: unless-stopped
+
   portainer:
     image: portainer/portainer-ce:lts # CE is the free tier; "lts" tracks stable releases (no "latest" tag is published)
     container_name: portainer
