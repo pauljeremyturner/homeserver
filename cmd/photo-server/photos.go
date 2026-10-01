@@ -29,10 +29,13 @@ var photoExts = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif
 const keepSize = 1920
 
 // library deals out the photos under dir in a random order, reshuffling
-// (and picking up added or removed files) once every one has been dealt.
+// once every one has been dealt. The folder is looked at again on every
+// deal, so a photo added since the last one (an upload) is dealt next, and
+// a removed one is dropped.
 type library struct {
-	dir  string
-	deck []string
+	dir   string
+	deck  []string
+	known map[string]bool // what the last look found; nil before the first
 }
 
 func newLibrary(dir string) *library { return &library{dir: dir} }
@@ -40,35 +43,64 @@ func newLibrary(dir string) *library { return &library{dir: dir} }
 var errNoPhotos = errors.New("no photos")
 
 func (l *library) next() (string, error) {
-	if len(l.deck) == 0 {
-		err := filepath.WalkDir(l.dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
+	found, err := l.scan()
+	if err != nil {
+		return "", err
+	}
+	there := make(map[string]bool, len(found))
+	for _, p := range found {
+		there[p] = true
+	}
+	if l.known != nil {
+		deck := l.deck[:0]
+		for _, p := range l.deck {
+			if there[p] {
+				deck = append(deck, p)
 			}
-			// Skip hidden files and folders (.thumbnails, .trashed-...), and
-			// screenshots, which the desktop saves under ~/Pictures too.
-			if (strings.HasPrefix(d.Name(), ".") || d.IsDir() && d.Name() == "Screenshots") && path != l.dir {
-				if d.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !d.IsDir() && photoExts[strings.ToLower(filepath.Ext(path))] {
-				l.deck = append(l.deck, path)
-			}
-			return nil
-		})
-		if err != nil {
-			return "", err
 		}
-		if len(l.deck) == 0 {
+		// Dealt from the end, so these go next.
+		for _, p := range found {
+			if !l.known[p] {
+				deck = append(deck, p)
+			}
+		}
+		l.deck = deck
+	}
+	l.known = there
+	if len(l.deck) == 0 {
+		if len(found) == 0 {
 			return "", errNoPhotos
 		}
+		l.deck = found
 		rand.Shuffle(len(l.deck), func(i, j int) { l.deck[i], l.deck[j] = l.deck[j], l.deck[i] })
 	}
 	p := l.deck[len(l.deck)-1]
 	l.deck = l.deck[:len(l.deck)-1]
 	return p, nil
+}
+
+// scan lists the photos under dir.
+func (l *library) scan() ([]string, error) {
+	var found []string
+	err := filepath.WalkDir(l.dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// Skip hidden files and folders (.thumbnails, .trashed-..., and
+		// uploads' .upload-* files still arriving), and screenshots,
+		// which the desktop saves under ~/Pictures too.
+		if (strings.HasPrefix(d.Name(), ".") || d.IsDir() && d.Name() == "Screenshots") && path != l.dir {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.IsDir() && photoExts[strings.ToLower(filepath.Ext(path))] {
+			found = append(found, path)
+		}
+		return nil
+	})
+	return found, err
 }
 
 // pick is the photo showing: decoded, upright and at most keepSize.

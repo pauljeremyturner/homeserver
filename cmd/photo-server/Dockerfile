@@ -9,5 +9,5 @@ RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /photo-serve
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /photo-server /photo-server
-EXPOSE 9092
+EXPOSE 9092 8092
 ENTRYPOINT ["/photo-server"]

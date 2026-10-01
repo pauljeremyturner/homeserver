@@ -104,15 +104,21 @@ services:
       args:
         - VERSION=${VERSION:-dev}
     container_name: photo-server
+    user: ${PUID}:${PGID} # uploads owned by paul, not root
     ports:
-      - 9092:9092
+      - 9092:9092 # gRPC, for photo-gui
+      - 8092:8092 # upload page for phones: http://<host>:8092
     volumes:
-      # PHOTOS_DIR in .env overrides where the photos are. Read-only; shared
-      # label so the desktop can keep adding photos.
-      - ${PHOTOS_DIR:-/home/paul/Pictures}:/photos:ro,z
+      # PHOTOS_DIR in .env overrides where the photos are. Writable for
+      # uploads (into Uploads/): the folder only holds copies, never the
+      # originals. Shared label so the desktop can keep adding photos.
+      - ${PHOTOS_DIR:-/home/paul/Pictures}:/photos:z
     environment:
+      - TZ=${TZ} # for the time stamp in uploaded file names
       # How long photo-gui shows each photo.
       - PHOTO_SECONDS=${PHOTO_SECONDS:-60}
+      # Largest photo the upload page takes.
+      - MAX_UPLOAD_MB=${PHOTO_UPLOAD_MAX_MB:-100}
     restart: unless-stopped
 
   portainer:

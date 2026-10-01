@@ -94,3 +94,49 @@ func TestEncodeFit(t *testing.T) {
 		}
 	}
 }
+
+func TestLibraryDealsAddedPhotosNext(t *testing.T) {
+	dir := t.TempDir()
+	for _, n := range []string{"a.png", "b.png", "c.png"} {
+		writePNG(t, filepath.Join(dir, n), 4, 4)
+	}
+	lib := newLibrary(dir)
+	first, err := lib.next()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// An upload part-way through the deck is dealt next; one still arriving
+	// (hidden) isn't.
+	writePNG(t, filepath.Join(dir, "Uploads", "new.png"), 4, 4)
+	writePNG(t, filepath.Join(dir, "Uploads", ".upload-123"), 4, 4)
+	if p, _ := lib.next(); filepath.Base(p) != "new.png" {
+		t.Errorf("after an upload, dealt %s, want new.png", p)
+	}
+
+	// A removed photo is dropped from the deck.
+	var gone string
+	for _, n := range []string{"a.png", "b.png", "c.png"} {
+		if filepath.Join(dir, n) != first {
+			gone = filepath.Join(dir, n)
+			break
+		}
+	}
+	os.Remove(gone)
+	// Only the third of a, b, c was left in this deck.
+	if p, _ := lib.next(); p == gone || p == first {
+		t.Errorf("dealt %s, want the photo left in the deck", p)
+	}
+	// Then a fresh deck of the three still there.
+	seen := map[string]bool{}
+	for range 3 {
+		p, err := lib.next()
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen[p] = true
+	}
+	if seen[gone] || len(seen) != 3 {
+		t.Errorf("dealt %v, want the three photos left, not %s", seen, gone)
+	}
+}

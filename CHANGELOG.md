@@ -3,6 +3,19 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.10.0 - 2026-10-01
+
+### Added
+- photo-server: a web page for phones on the LAN (port 8092) to add photos
+  to the photo frame. They're saved, checked and time-stamped, into
+  `Uploads/` in the photos folder, now mounted writable as it only holds
+  copies (`PHOTO_UPLOAD_MAX_MB`, default 100).
+
+### Changed
+- photo-server: the photos folder is looked at before every photo, so one
+  added (uploaded or copied in) is shown next, not after the whole deck,
+  and one removed is dropped.
+
 ## 1.9.0 - 2026-09-30
 
 ### Added

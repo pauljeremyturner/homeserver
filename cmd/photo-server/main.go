@@ -1,12 +1,14 @@
 // photo-server streams a random photo from a directory to photo displays
 // (photo-gui), moving on to another every PHOTO_SECONDS. Every photo is shown
-// once, in a random order, before any repeats.
+// once, in a random order, before any repeats. It also serves a web page on
+// HTTP_ADDR for phones to upload photos, which are shown next.
 package main
 
 import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -35,6 +37,12 @@ func main() {
 	if err != nil || seconds <= 0 {
 		log.Fatalf("PHOTO_SECONDS must be a positive number of seconds, got %q", os.Getenv("PHOTO_SECONDS"))
 	}
+	maxMB, err := strconv.Atoi(envOr("MAX_UPLOAD_MB", "100"))
+	if err != nil || maxMB <= 0 {
+		log.Fatalf("MAX_UPLOAD_MB must be a positive number, got %q", os.Getenv("MAX_UPLOAD_MB"))
+	}
+	up := &uploader{dir: envOr("UPLOAD_DIR", filepath.Join(dir, "Uploads")), maxBytes: int64(maxMB) << 20}
+	go func() { log.Fatalf("upload page: %v", serveUploads(envOr("HTTP_ADDR", ":8092"), up)) }()
 
 	bc := broadcast.New[*pick]()
 	go pickPhotos(newLibrary(dir), time.Duration(seconds)*time.Second, bc)
