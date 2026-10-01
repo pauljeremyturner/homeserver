@@ -8,12 +8,14 @@
 <style>
   :root { color-scheme: dark; --bg: #111; --card: #1d1d1d; --fg: #eee; --dim: #999; --ok: #5c5; --bad: #e66; --accent: #4a8fe7; }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 17px/1.4 system-ui, sans-serif; }
+  body { margin: 0; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); background: var(--bg); color: var(--fg); font: 17px/1.4 system-ui, sans-serif; }
   h1 { font-size: 22px; margin: 4px 0 4px; }
   p { color: var(--dim); margin: 0 0 16px; }
   label.pick { display: block; padding: 22px; border-radius: 14px; background: var(--accent); color: #fff; text-align: center; font-size: 20px; font-weight: 600; }
   input[type=file] { display: none; }
-  ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
+  #summary { margin: 16px 0 0; color: var(--fg); }
+  #summary:empty { display: none; }
+  ul { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 10px; }
   li { display: flex; gap: 12px; align-items: center; background: var(--card); border-radius: 12px; padding: 8px; }
   li img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; background: #333; }
   .info { min-width: 0; flex: 1; }
@@ -27,19 +29,31 @@
 <h1>Add photos to the frame</h1>
 <p>Each new photo is shown next on the photo frame.</p>
 <label class="pick">Choose photos<input id="files" type="file" accept="image/*" multiple></label>
+<p id="summary"></p>
 <ul id="list"></ul>
 <script>
 const list = document.getElementById('list');
 const input = document.getElementById('files');
+const summary = document.getElementById('summary');
 let queue = Promise.resolve();
+let total = 0, added = 0, failed = 0;
+
+// "Added 2 of 3", so every photo is accounted for without scrolling.
+function showSummary() {
+  let text = 'Added ' + added + ' of ' + total;
+  if (failed) text += ', ' + failed + ' failed';
+  summary.textContent = text;
+}
 
 input.addEventListener('change', () => {
   for (const file of input.files) {
+    total++;
     const row = addRow(file);
     // One at a time: phones on wifi do better than with many at once.
     queue = queue.then(() => upload(file, row));
   }
   input.value = '';
+  showSummary();
 });
 
 function addRow(file) {
@@ -59,7 +73,8 @@ function addRow(file) {
   bar.max = 1; bar.value = 0;
   info.append(name, status, bar);
   li.append(img, info);
-  list.prepend(li);
+  // In the order picked, the first at the top.
+  list.append(li);
   return { status, bar };
 }
 
@@ -69,6 +84,8 @@ function upload(file, row) {
       row.status.textContent = text;
       row.status.className = 'status ' + (ok ? 'ok' : 'bad');
       row.bar.remove();
+      if (ok) added++; else failed++;
+      showSummary();
       resolve();
     };
     const form = new FormData();

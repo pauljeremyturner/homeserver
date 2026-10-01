@@ -3,7 +3,7 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
-## Unreleased
+## 1.10.1 - 2026-10-01
 
 ### Changed
 - info-server: the planets page shows for 30s (was 60s), set by the new
@@ -12,6 +12,11 @@ with `./deploy.sh [tag]`.
   60+30+30+30s. It plays the last 10 years (was 20; `PLANETS_YEARS`,
   compose `INFO_PLANETS_YEARS`), about as fast per year as before, as the
   animation takes two thirds of the page's time.
+
+### Fixed
+- photo-server: the upload page lists photos in the order picked, the
+  first at the top, with an "Added n of m" line above; the first photo of
+  several was at the bottom and could be hidden under the phone's toolbar.
 
 ## 1.10.0 - 2026-10-01
 
