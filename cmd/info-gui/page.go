@@ -16,7 +16,7 @@ var defaultCycle = []*displaypb.PageSlot{
 	{Page: displaypb.Page_PAGE_WEATHER, Seconds: 60},
 	{Page: displaypb.Page_PAGE_MARKETS, Seconds: 30},
 	{Page: displaypb.Page_PAGE_MARKETS_6M, Seconds: 30},
-	{Page: displaypb.Page_PAGE_PLANETS, Seconds: 60},
+	{Page: displaypb.Page_PAGE_PLANETS, Seconds: 30},
 }
 
 // pageShowing is which page to show at now and the times it started and

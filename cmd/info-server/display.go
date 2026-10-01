@@ -9,16 +9,15 @@ import (
 )
 
 // pageCycle is the order displays show their pages in and for how long:
-// the weather and planets for pageSeconds each, and the two markets pages,
-// the week's prices then six months', for marketsSeconds each. With the
-// default 60+30+30+60s, the weather page shows on minutes divisible by
-// three.
-func pageCycle(pageSeconds, marketsSeconds int) []*displaypb.PageSlot {
+// the weather for pageSeconds, the two markets pages, the week's prices
+// then six months', for marketsSeconds each, and the planets for
+// planetsSeconds (by default 60+30+30+30s, a rotation every 2.5 minutes).
+func pageCycle(pageSeconds, marketsSeconds, planetsSeconds int) []*displaypb.PageSlot {
 	return []*displaypb.PageSlot{
 		{Page: displaypb.Page_PAGE_WEATHER, Seconds: int64(pageSeconds)},
 		{Page: displaypb.Page_PAGE_MARKETS, Seconds: int64(marketsSeconds)},
 		{Page: displaypb.Page_PAGE_MARKETS_6M, Seconds: int64(marketsSeconds)},
-		{Page: displaypb.Page_PAGE_PLANETS, Seconds: int64(pageSeconds)},
+		{Page: displaypb.Page_PAGE_PLANETS, Seconds: int64(planetsSeconds)},
 	}
 }
 

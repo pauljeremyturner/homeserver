@@ -77,9 +77,10 @@ func main() {
 	walletLabel := envOr("WALLET_BTC_LABEL", "BTC Wallet")
 	pageSeconds := positiveEnv("PAGE_SECONDS", 60)
 	marketsSeconds := positiveEnv("MARKETS_PAGE_SECONDS", 30)
+	planetsSeconds := positiveEnv("PLANETS_PAGE_SECONDS", 30)
 	// The planets' elements are only good from 1800, and past ~50 years
 	// Mercury laps too fast for a display's animation to follow.
-	planetsYears, err := strconv.Atoi(envOr("PLANETS_YEARS", "20"))
+	planetsYears, err := strconv.Atoi(envOr("PLANETS_YEARS", "10"))
 	if err != nil || planetsYears < 1 || planetsYears > 200 {
 		log.Fatalf("PLANETS_YEARS must be a number of years from 1 to 200, got %q", os.Getenv("PLANETS_YEARS"))
 	}
@@ -101,7 +102,7 @@ func main() {
 	go pollWeather(weatherBC)
 	go pollNews(newsBC)
 	go pollPlanets(planetsBC, planetsYears)
-	go cyclePages(pageBC, pageCycle(pageSeconds, marketsSeconds))
+	go cyclePages(pageBC, pageCycle(pageSeconds, marketsSeconds, planetsSeconds))
 	go pollCrypto(cryptoBCs)
 	if walletAddr != "" {
 		go pollWallet(walletAddr, walletLabel, walletBC)

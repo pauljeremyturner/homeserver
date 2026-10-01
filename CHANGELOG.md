@@ -3,6 +3,16 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## Unreleased
+
+### Changed
+- info-server: the planets page shows for 30s (was 60s), set by the new
+  `PLANETS_PAGE_SECONDS` (compose `INFO_PLANETS_PAGE_SECONDS`), so
+  `PAGE_SECONDS` now sets only the weather page; the rotation is
+  60+30+30+30s. It plays the last 10 years (was 20; `PLANETS_YEARS`,
+  compose `INFO_PLANETS_YEARS`), about as fast per year as before, as the
+  animation takes two thirds of the page's time.
+
 ## 1.10.0 - 2026-10-01
 
 ### Added

@@ -9,8 +9,8 @@ import (
 )
 
 func TestPageAt(t *testing.T) {
-	start := time.Date(2026, 9, 27, 15, 24, 0, 0, time.UTC) // minute divisible by 3
-	cycle := pageCycle(60, 30)
+	start := time.Unix(1_800_000_000, 0) // a whole number of 150s rotations
+	cycle := pageCycle(60, 30, 30)
 	u := pageAt(start.Add(59*time.Second), cycle)
 	if u.Page != displaypb.Page_PAGE_WEATHER || u.SinceUnix != start.Unix() || u.NextUnix != start.Add(time.Minute).Unix() || u.PeriodSeconds != 60 || len(u.Cycle) != 4 {
 		t.Errorf("first minute: %v", u)
@@ -22,8 +22,8 @@ func TestPageAt(t *testing.T) {
 	}{
 		{60 * time.Second, displaypb.Page_PAGE_MARKETS, 30},
 		{90 * time.Second, displaypb.Page_PAGE_MARKETS_6M, 30},
-		{2 * time.Minute, displaypb.Page_PAGE_PLANETS, 60},
-		{3 * time.Minute, displaypb.Page_PAGE_WEATHER, 60},
+		{2 * time.Minute, displaypb.Page_PAGE_PLANETS, 30},
+		{150 * time.Second, displaypb.Page_PAGE_WEATHER, 60},
 	} {
 		if u := pageAt(start.Add(c.at), cycle); u.Page != c.page || u.PeriodSeconds != c.period {
 			t.Errorf("at +%v: %v for %ds", c.at, u.Page, u.PeriodSeconds)

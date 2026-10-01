@@ -121,7 +121,7 @@ func demoDays(now int64) []*weatherpb.DayForecast {
 	return out
 }
 
-// demoPlanets is what info-server sends for the planets, with 20 years of
+// demoPlanets is what info-server sends for the planets, with 10 years of
 // history.
 func demoPlanets(t time.Time) *planetspb.PlanetsUpdate {
 	u := &planetspb.PlanetsUpdate{ComputedAtUnix: t.Unix()}
@@ -138,7 +138,7 @@ func demoPlanets(t time.Time) *planetspb.PlanetsUpdate {
 	for _, o := range planets.Orbits(t, 180) {
 		u.Orbits = append(u.Orbits, path(o))
 	}
-	start, step, history := planets.History(t, time.Duration(20*365.25*24*float64(time.Hour)), 1800)
+	start, step, history := planets.History(t, time.Duration(10*365.25*24*float64(time.Hour)), 1800)
 	u.HistoryStartUnix, u.HistoryStepSeconds = start.Unix(), int64(step/time.Second)
 	for _, h := range history {
 		u.History = append(u.History, path(h))

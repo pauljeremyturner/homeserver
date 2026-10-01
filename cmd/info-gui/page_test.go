@@ -9,7 +9,7 @@ import (
 )
 
 func TestPageShowing(t *testing.T) {
-	even := time.Date(2026, 9, 27, 15, 24, 0, 0, time.UTC) // a whole number of 3-minute rotations since the epoch
+	even := time.Unix(1_800_000_000, 0) // a whole number of 150s rotations since the epoch
 	weather, markets, markets6m, planets := displaypb.Page_PAGE_WEATHER, displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_MARKETS_6M, displaypb.Page_PAGE_PLANETS
 
 	// With no word from the server, the default rotation runs on the clock.
@@ -19,7 +19,7 @@ func TestPageShowing(t *testing.T) {
 	for _, c := range []struct {
 		at   time.Duration
 		want displaypb.Page
-	}{{70 * time.Second, markets}, {100 * time.Second, markets6m}, {150 * time.Second, planets}, {190 * time.Second, weather}} {
+	}{{70 * time.Second, markets}, {100 * time.Second, markets6m}, {130 * time.Second, planets}, {160 * time.Second, weather}} {
 		if p, _, _ := pageShowing(even.Add(c.at), nil); p != c.want {
 			t.Errorf("no server, +%v: got %v, want %v", c.at, p, c.want)
 		}
