@@ -3,7 +3,7 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
-## Unreleased
+## 1.11.0 - 2026-10-02
 
 ### Added
 - control: a phone page (port 8093) with a Shutdown button that powers off
