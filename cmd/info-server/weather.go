@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	weatherpb "homeserver/gen/weather"
@@ -150,9 +151,42 @@ func beaufortName(kmph string) string {
 	return "Hurricane"
 }
 
-func fetchWeather() (*weatherpb.WeatherUpdate, error) {
+// location is a fixed place to show the weather for, from LOCATION (and
+// LOCATION_NAME), for when locating by IP is wrong: a mobile (5G) router's
+// IP can place it far from where it is.
+type location struct {
+	lat, lon string // decimal degrees, as given to wttr.in and Open-Meteo
+	name     string // shown instead of wttr.in's nearest area, if set
+}
+
+// parseLocation reads LOCATION as "lat,lon" in decimal degrees (e.g.
+// "55.8642,-4.2518"). An empty value means locate by IP, and gives nil.
+func parseLocation(latLon, name string) (*location, error) {
+	if strings.TrimSpace(latLon) == "" {
+		return nil, nil
+	}
+	latS, lonS, ok := strings.Cut(latLon, ",")
+	lat, errLat := strconv.ParseFloat(strings.TrimSpace(latS), 64)
+	lon, errLon := strconv.ParseFloat(strings.TrimSpace(lonS), 64)
+	if !ok || errLat != nil || errLon != nil || lat < -90 || lat > 90 || lon < -180 || lon > 180 {
+		return nil, fmt.Errorf("want \"lat,lon\" in decimal degrees, e.g. \"55.8642,-4.2518\", got %q", latLon)
+	}
+	return &location{
+		lat:  strconv.FormatFloat(lat, 'f', -1, 64),
+		lon:  strconv.FormatFloat(lon, 'f', -1, 64),
+		name: strings.TrimSpace(name),
+	}, nil
+}
+
+// fetchWeather gets the weather at loc, or wherever wttr.in places this
+// server's IP if loc is nil.
+func fetchWeather(loc *location) (*weatherpb.WeatherUpdate, error) {
 	client := http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Get("https://wttr.in/?format=j1")
+	u := "https://wttr.in/?format=j1"
+	if loc != nil {
+		u = "https://wttr.in/" + loc.lat + "," + loc.lon + "?format=j1"
+	}
+	resp, err := client.Get(u)
 	if err != nil {
 		return nil, err
 	}
@@ -204,8 +238,14 @@ func fetchWeather() (*weatherpb.WeatherUpdate, error) {
 		if country != "" {
 			update.Location += ", " + country
 		}
-		update.Timezone = timezoneAt(na.Latitude, na.Longitude)
 	}
+	if loc != nil {
+		lat, lon = loc.lat, loc.lon
+		if loc.name != "" {
+			update.Location = loc.name
+		}
+	}
+	update.Timezone = timezoneAt(lat, lon)
 
 	today := w.Weather[0]
 	if len(today.Astronomy) > 0 {

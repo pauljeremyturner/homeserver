@@ -3,6 +3,14 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## Unreleased
+
+### Added
+- info-server: `LOCATION` (`lat,lon`) sets where the weather, sun and moon
+  are for, and `LOCATION_NAME` optionally the place name shown. Without
+  `LOCATION` it's located by IP as before, which is badly off behind a 5G
+  router.
+
 ## 1.11.0 - 2026-10-02
 
 ### Added

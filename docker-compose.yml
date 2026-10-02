@@ -96,6 +96,10 @@ services:
       # How many years the planets page animates, up to today (1-200; Mercury
       # blurs past ~50).
       - PLANETS_YEARS=${INFO_PLANETS_YEARS:-10}
+      # Where the weather is for, as "lat,lon" (see .env.example). Unset =
+      # located by IP, which a 5G router's IP can get badly wrong.
+      - LOCATION=${LOCATION}
+      - LOCATION_NAME=${LOCATION_NAME}
     restart: unless-stopped
 
   photo-server:

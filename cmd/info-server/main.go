@@ -84,6 +84,15 @@ func main() {
 	if err != nil || planetsYears < 1 || planetsYears > 200 {
 		log.Fatalf("PLANETS_YEARS must be a number of years from 1 to 200, got %q", os.Getenv("PLANETS_YEARS"))
 	}
+	loc, err := parseLocation(os.Getenv("LOCATION"), os.Getenv("LOCATION_NAME"))
+	if err != nil {
+		log.Fatalf("LOCATION: %v", err)
+	}
+	if loc != nil {
+		log.Printf("weather: location set to %s,%s", loc.lat, loc.lon)
+	} else {
+		log.Printf("weather: no LOCATION set, locating by IP")
+	}
 
 	weatherBC := broadcast.New[*weatherpb.WeatherUpdate]()
 	newsBC := broadcast.New[*newspb.NewsUpdate]()
@@ -99,7 +108,7 @@ func main() {
 	planetsBC := broadcast.New[*planetspb.PlanetsUpdate]()
 	pageBC := broadcast.New[*displaypb.PageUpdate]()
 
-	go pollWeather(weatherBC)
+	go pollWeather(weatherBC, loc)
 	go pollNews(newsBC)
 	go pollPlanets(planetsBC, planetsYears)
 	go cyclePages(pageBC, pageCycle(pageSeconds, marketsSeconds, planetsSeconds))
@@ -128,9 +137,9 @@ func main() {
 	}
 }
 
-func pollWeather(bc *broadcast.Broadcaster[*weatherpb.WeatherUpdate]) {
+func pollWeather(bc *broadcast.Broadcaster[*weatherpb.WeatherUpdate], loc *location) {
 	poll := func() {
-		update, err := fetchWeather()
+		update, err := fetchWeather(loc)
 		if err != nil {
 			log.Printf("weather: fetch failed: %v", err)
 			return
