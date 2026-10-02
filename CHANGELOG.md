@@ -3,7 +3,7 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
-## Unreleased
+## 1.12.0 - 2026-10-02
 
 ### Added
 - info-server: `LOCATION` (`lat,lon`) sets where the weather, sun and moon
