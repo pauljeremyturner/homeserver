@@ -122,6 +122,26 @@ services:
       - MAX_UPLOAD_MB=${PHOTO_UPLOAD_MAX_MB:-100}
     restart: unless-stopped
 
+  # Phone page with a Shutdown button: http://<host>:8093. Powers off each
+  # host in CONTROL_HOSTS in turn, as root over SSH, with a key it makes on
+  # first start in config/control (its public half is in `docker logs
+  # control`; add it to /root/.ssh/authorized_keys on every host).
+  control:
+    build:
+      context: .
+      dockerfile: cmd/control/Dockerfile
+      args:
+        - VERSION=${VERSION:-dev}
+    container_name: control
+    ports:
+      - 8093:8093
+    volumes:
+      - ./config/control:/ssh:Z # SSH key + known_hosts
+    environment:
+      - CONTROL_HOSTS=${CONTROL_HOSTS}
+      - DRY_RUN=${CONTROL_DRY_RUN:-0}
+    restart: unless-stopped
+
   portainer:
     image: portainer/portainer-ce:lts # CE is the free tier; "lts" tracks stable releases (no "latest" tag is published)
     container_name: portainer

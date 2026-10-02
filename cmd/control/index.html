@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111">
+<title>Control</title>
+<style>
+  :root { color-scheme: dark; --bg: #111; --card: #1d1d1d; --fg: #eee; --dim: #999; --ok: #5c5; --bad: #e66; --stop: #c33; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px 16px calc(32px + env(safe-area-inset-bottom)); background: var(--bg); color: var(--fg); font: 17px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 22px; margin: 4px 0 4px; }
+  p { color: var(--dim); margin: 0 0 16px; }
+  button { display: block; width: 100%; padding: 22px; border: 0; border-radius: 14px; background: var(--stop); color: #fff; font: 600 20px system-ui, sans-serif; }
+  button:disabled { opacity: .4; }
+  #confirm { display: none; gap: 10px; grid-template-columns: 1fr 1fr; margin-top: 10px; }
+  #confirm.show { display: grid; }
+  #confirm .no { background: var(--card); }
+  ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
+  li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; background: var(--card); border-radius: 12px; padding: 12px 14px; }
+  .host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .state { color: var(--dim); flex: none; }
+  .state.off { color: var(--ok); } .state.failed { color: var(--bad); }
+  .err { flex-basis: 100%; font-size: 14px; color: var(--bad); }
+  #note { margin-top: 16px; }
+</style>
+</head>
+<body>
+<h1>Control</h1>
+<p>Shutdown powers off the displays, then the server.</p>
+<button id="shutdown">Shutdown</button>
+<div id="confirm"><button class="no" id="no">Cancel</button><button id="yes">Yes, shut down</button></div>
+<ul id="hosts"></ul>
+<p id="note"></p>
+<script>
+const shutdownBtn = document.getElementById('shutdown');
+const confirmBox = document.getElementById('confirm');
+const hostList = document.getElementById('hosts');
+const note = document.getElementById('note');
+let polling = false;
+
+shutdownBtn.onclick = () => confirmBox.classList.add('show');
+document.getElementById('no').onclick = () => confirmBox.classList.remove('show');
+document.getElementById('yes').onclick = async () => {
+  confirmBox.classList.remove('show');
+  shutdownBtn.disabled = true;
+  try {
+    show(await (await fetch('/rpc/shutdown', {method: 'POST'})).json());
+  } catch (e) {
+    note.textContent = 'Could not reach the server: ' + e.message;
+    shutdownBtn.disabled = false;
+    return;
+  }
+  poll();
+};
+
+function show(s) {
+  hostList.replaceChildren(...s.hosts.map(h => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = h.host;
+    const state = document.createElement('span');
+    state.className = 'state ' + h.state;
+    state.textContent = h.state;
+    li.append(name, state);
+    if (h.error) {
+      const err = document.createElement('span');
+      err.className = 'err';
+      err.textContent = h.error;
+      li.append(err);
+    }
+    return li;
+  }));
+  if (!s.hosts.length) note.textContent = 'No hosts set up (CONTROL_HOSTS).';
+  else if (s.dryRun) note.textContent = 'Dry run: nothing is really powered off.';
+  shutdownBtn.disabled = s.running;
+  return s;
+}
+
+// The server is the last host, so once it's going down it stops answering:
+// that's the expected end, not an error.
+async function poll() {
+  if (polling) return;
+  polling = true;
+  for (;;) {
+    await new Promise(r => setTimeout(r, 1500));
+    let s;
+    try {
+      s = show(await (await fetch('/rpc/status')).json());
+    } catch (e) {
+      note.textContent = 'The server has gone down. Everything is off.';
+      for (const st of hostList.querySelectorAll('.state:not(.failed)')) { st.className = 'state off'; st.textContent = 'off'; }
+      break;
+    }
+    if (!s.running) break;
+  }
+  polling = false;
+}
+
+fetch('/rpc/status').then(r => r.json()).then(s => { show(s); if (s.running) poll(); }).catch(() => {});
+</script>
+</body>
+</html>

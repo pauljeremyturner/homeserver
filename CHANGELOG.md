@@ -3,6 +3,14 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## Unreleased
+
+### Added
+- control: a phone page (port 8093) with a Shutdown button that powers off
+  each host in `CONTROL_HOSTS` in turn, as root over SSH with a key it
+  makes in `config/control/`, the server last (`CONTROL_DRY_RUN=1` to try
+  it without powering anything off).
+
 ## 1.10.1 - 2026-10-01
 
 ### Changed
