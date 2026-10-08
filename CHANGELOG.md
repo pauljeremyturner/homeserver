@@ -3,6 +3,14 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## Unreleased
+
+### Added
+- `router/pihole-dns.py`: `enable` makes the ZTE router forward all DNS to
+  Pi-hole (via a manual APN profile, the router's only DNS setting), `undo`
+  hands DNS back to the router, `status` shows which is in effect. Settings
+  in `router/.env` (see `router/.env.example`).
+
 ## 1.12.0 - 2026-10-02
 
 ### Added

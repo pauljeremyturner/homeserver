@@ -41,6 +41,24 @@ It fetches, checks out the tag (detached), and runs `docker compose up -d --buil
 
 Music lives at `/home/paul/Music` on the Mac Mini's boot drive (XFS, so plain `:z` SELinux relabeling works). `/home/paul/content:/srv` (filebrowserNEXT) is still a placeholder.
 
+## Router DNS (Pi-hole)
+
+The ZTE MC888 5G router can't hand out a custom DNS server over DHCP: clients always get the router itself, which forwards to the mobile network's DNS. Its one DNS setting lives in a manual APN profile (and is hidden in the web UI), so `router/pihole-dns.py` (Python 3, no dependencies) drives the router's web API to use it:
+
+```
+router/pihole-dns.py status   # APN mode, DNS, connection; checks whether ads are blocked
+router/pihole-dns.py enable   # router forwards all DNS to Pi-hole
+router/pihole-dns.py undo     # back to automatic APN: router manages DNS again
+```
+
+- `enable` copies the operator's automatic APN profile into a manual one named "Pi-hole DNS" with `PIHOLE_DNS` as its only DNS server, and makes it active. It first checks Pi-hole answers, and refuses if the router is already on some other manual profile.
+- `undo` switches back to automatic APN and deletes that profile. Run it whenever anything looks wrong; it only needs the LAN, not the internet.
+- Both drop mobile data for roughly 10-30s, as the router only changes APN while disconnected.
+- If the server running Pi-hole is down while enabled, nothing on the LAN can resolve names: run `undo`.
+- Pi-hole sees every query as coming from the router, so its per-client stats show only the router.
+
+Configure with environment variables or `router/.env` (gitignored; copy `router/.env.example`): `ROUTER_ADDR`, `ROUTER_USER`, `ROUTER_PASSWORD`, `PIHOLE_DNS`.
+
 ## Go monorepo
 
 Single `go.mod` at the repo root holds every custom Go service:
