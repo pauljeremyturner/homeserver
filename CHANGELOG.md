@@ -3,7 +3,7 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
-## Unreleased
+## 1.13.0 - 2026-10-08
 
 ### Added
 - `router/pihole-dns.py`: `enable` makes the ZTE router forward all DNS to
