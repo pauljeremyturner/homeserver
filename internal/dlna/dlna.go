@@ -184,25 +184,30 @@ var descriptionPaths = []string{
 }
 
 type deviceDescription struct {
-	Device struct {
-		FriendlyName string `xml:"friendlyName"`
-	} `xml:"device"`
+	Device Device `xml:"device"`
 }
 
-// FriendlyName finds the UPnP device serving at base ("http://host:port")
-// and returns its friendlyName, e.g. "Plex Media Server: fedora".
-func FriendlyName(base string) (string, error) {
+// Device is what a UPnP device says about itself in its description.
+type Device struct {
+	FriendlyName string `xml:"friendlyName"` // e.g. "Plex Media Server: fedora"
+	ModelName    string `xml:"modelName"`    // e.g. "Plex Media Server"
+	ModelNumber  string `xml:"modelNumber"`  // e.g. "1.43.4.10903", or just a model code
+}
+
+// Describe finds the UPnP device serving at base ("http://host:port") and
+// returns its description.
+func Describe(base string) (Device, error) {
 	for _, p := range descriptionPaths {
 		resp, err := httpClient.Get(base + p)
 		if err != nil {
-			return "", err
+			return Device{}, err
 		}
 		var desc deviceDescription
 		err = xml.NewDecoder(resp.Body).Decode(&desc)
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusOK && err == nil && desc.Device.FriendlyName != "" {
-			return desc.Device.FriendlyName, nil
+			return desc.Device, nil
 		}
 	}
-	return "", fmt.Errorf("no UPnP device description found at %s", base)
+	return Device{}, fmt.Errorf("no UPnP device description found at %s", base)
 }

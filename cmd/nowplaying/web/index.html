@@ -266,7 +266,7 @@ function setText(el, text) {
   el.textContent = text && text.length ? text : ' ';
 }
 
-function setDevice(el, label, name) {
+function setDevice(el, label, name, detail) {
   el.textContent = '';
   if (!name) return;
   var l = document.createElement('span');
@@ -274,6 +274,11 @@ function setDevice(el, label, name) {
   l.textContent = label;
   el.appendChild(l);
   el.appendChild(document.createTextNode(name));
+  if (!detail) return;
+  var dt = document.createElement('span');
+  dt.className = 'label';
+  dt.textContent = ' [' + detail + ']';
+  el.appendChild(dt);
 }
 
 function showIdle(text) {
@@ -313,8 +318,8 @@ function applyState(d) {
   setText(titleEl, d.title);
   setText(artistEl, d.artist);
   setText(albumEl, d.album);
-  setDevice(sourceEl, 'from ', d.source);
-  setDevice(rendererEl, 'on ', d.renderer);
+  setDevice(sourceEl, 'from ', d.source, d.source_detail);
+  setDevice(rendererEl, 'on ', d.renderer, d.renderer_detail);
   stateEl.textContent = '';
   stateEl.className = '';
 

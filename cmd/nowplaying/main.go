@@ -26,8 +26,11 @@ type nowPlaying struct {
 	RelTime     string `json:"rel_time"`
 	Source      string `json:"source"`   // media server the track comes from
 	Renderer    string `json:"renderer"` // device playing it
-	UpdatedAt   string `json:"updated_at"`
-	Stale       bool   `json:"stale"`
+	// Model and version of each, e.g. "Plex Media Server v1.43.4.10903".
+	SourceDetail   string `json:"source_detail"`
+	RendererDetail string `json:"renderer_detail"`
+	UpdatedAt      string `json:"updated_at"`
+	Stale          bool   `json:"stale"`
 }
 
 type store struct {
@@ -83,7 +86,7 @@ func main() {
 	// it on AVTransport, so when its address is given, poll its own API.
 	var r renderer
 	if musiccastURL := os.Getenv("RENDERER_MUSICCAST_URL"); musiccastURL != "" {
-		r = newMusiccastRenderer(musiccastURL, art)
+		r = newMusiccastRenderer(musiccastURL, art, newDeviceNames())
 	} else {
 		controlURL := os.Getenv("RENDERER_CONTROL_URL")
 		if controlURL == "" {

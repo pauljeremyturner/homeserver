@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,8 +52,8 @@ func (d *dlnaRenderer) poll() (nowPlaying, error) {
 		np.AlbumArtURL = d.art.resolve(pos.AlbumArtURL, pos.Album, pos.Artist)
 		np.Duration = pos.Duration
 		np.RelTime = pos.RelTime
-		np.Source = d.names.lookup(pos.TrackURI)
-		np.Renderer = d.names.lookup(d.controlURL)
+		np.Source, np.SourceDetail = d.names.lookup(pos.TrackURI)
+		np.Renderer, np.RendererDetail = d.names.lookup(d.controlURL)
 	}
 	return np, nil
 }
@@ -79,14 +80,25 @@ type musiccastRenderer struct {
 	baseURL string
 	client  *musiccast.Client
 	art     *artCache
+	servers *deviceNames // media servers the receiver plays from
 
 	mu           sync.Mutex
 	names        musiccast.Names
+	detail       string // e.g. "Yamaha MusicCast v1.36"
 	namesChecked time.Time
+
+	// The source detail found for srcTrack, so the recently-played list is
+	// only read when the track changes (or, if nothing was found, every
+	// sourceRetry).
+	srcTrack   string
+	srcDetail  string
+	srcChecked time.Time
 }
 
-func newMusiccastRenderer(baseURL string, art *artCache) *musiccastRenderer {
-	return &musiccastRenderer{baseURL: baseURL, client: musiccast.New(baseURL), art: art}
+const sourceRetry = 30 * time.Second
+
+func newMusiccastRenderer(baseURL string, art *artCache, servers *deviceNames) *musiccastRenderer {
+	return &musiccastRenderer{baseURL: baseURL, client: musiccast.New(baseURL), art: art, servers: servers}
 }
 
 func (m *musiccastRenderer) describe() string { return m.baseURL + " (MusicCast)" }
@@ -124,7 +136,7 @@ func (m *musiccastRenderer) poll() (nowPlaying, error) {
 	}
 	np := nowPlaying{State: state}
 	if state == "PLAYING" || state == "PAUSED_PLAYBACK" {
-		names := m.lookupNames()
+		names, detail := m.lookupNames()
 		np.Title = info.Track
 		np.Artist = info.Artist
 		np.Album = info.Album
@@ -135,26 +147,64 @@ func (m *musiccastRenderer) poll() (nowPlaying, error) {
 		np.RelTime = hms(info.PlayTime)
 		np.Source = orDefault(names.Inputs[info.Input], info.Input)
 		np.Renderer = names.Zone
+		np.RendererDetail = detail
+		np.SourceDetail = m.sourceDetail(info)
 	}
 	return np, nil
 }
 
-// lookupNames returns the receiver's display names, fetched once and retried
-// after nameRetry if that failed.
-func (m *musiccastRenderer) lookupNames() musiccast.Names {
+// lookupNames returns the receiver's display names and its own detail,
+// fetched once and retried after nameRetry if that failed.
+func (m *musiccastRenderer) lookupNames() (musiccast.Names, string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.names.Inputs != nil || time.Since(m.namesChecked) < nameRetry {
-		return m.names
+		return m.names, m.detail
 	}
-	names, err := m.client.Names()
 	m.namesChecked = time.Now()
+	names, err := m.client.Names()
 	if err != nil {
 		log.Printf("names: %v", err)
-		return m.names
+		return m.names, m.detail
+	}
+	dev, err := m.client.DeviceInfo()
+	if err != nil {
+		log.Printf("names: %v", err)
+		return m.names, m.detail
 	}
 	m.names = names
-	return names
+	m.detail = fmt.Sprintf("Yamaha MusicCast v%.2f", dev.SystemVersion)
+	return m.names, m.detail
+}
+
+// sourceDetail describes the media server the playing track comes from,
+// e.g. "Plex Media Server v1.43.4.10903". getPlayInfo doesn't say, but the
+// track's entry in the recently-played list has art on that server, whose
+// UPnP description gives its model and version.
+func (m *musiccastRenderer) sourceDetail(info musiccast.PlayInfo) string {
+	m.mu.Lock()
+	if info.Track == m.srcTrack && (m.srcDetail != "" || time.Since(m.srcChecked) < sourceRetry) {
+		defer m.mu.Unlock()
+		return m.srcDetail
+	}
+	m.mu.Unlock()
+
+	detail := ""
+	recent, err := m.client.RecentInfo()
+	if err != nil {
+		log.Printf("source: %v", err)
+	}
+	for _, r := range recent {
+		if r.Input == info.Input && r.Text != "" && strings.HasPrefix(info.Track, r.Text) {
+			_, detail = m.servers.lookup(r.AlbumArtURL)
+			break
+		}
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.srcTrack, m.srcDetail, m.srcChecked = info.Track, detail, time.Now()
+	return detail
 }
 
 // toggle decides from the receiver's live state rather than the last poll.

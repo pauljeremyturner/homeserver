@@ -3,6 +3,16 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.15.0 - 2026-10-09
+
+### Added
+- nowplaying: the source and renderer lines carry their model and version
+  in brackets, e.g. "from Server [Plex Media Server v1.43.4.10903]" and
+  "on Salon [Yamaha MusicCast v1.36]" (new `source_detail` and
+  `renderer_detail` in `/api/now-playing`). In MusicCast mode the media
+  server is found from the track's entry in the receiver's recently-played
+  list; in DLNA mode both come from the devices' UPnP descriptions.
+
 ## 1.14.0 - 2026-10-09
 
 ### Added

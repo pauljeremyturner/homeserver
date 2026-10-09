@@ -134,3 +134,33 @@ func (c *Client) Names() (Names, error) {
 func (c *Client) SetPlayback(playback string) error {
 	return c.get("netusb/setPlayback?playback="+url.QueryEscape(playback), nil)
 }
+
+// DeviceInfo is the receiver's model and firmware.
+type DeviceInfo struct {
+	ModelName     string  `json:"model_name"`     // e.g. "R-N602"
+	SystemVersion float64 `json:"system_version"` // firmware, e.g. 1.36
+}
+
+func (c *Client) DeviceInfo() (DeviceInfo, error) {
+	var d DeviceInfo
+	err := c.get("system/getDeviceInfo", &d)
+	return d, err
+}
+
+// Recent is a track in the receiver's recently-played list. Unlike PlayInfo's
+// art, AlbumArtURL here is still the source's own, e.g. a media server's
+// http://host:port/... link, so it says where the track came from.
+type Recent struct {
+	Input       string `json:"input"`
+	Text        string `json:"text"` // track title, cut to 64 characters
+	AlbumArtURL string `json:"albumart_url"`
+}
+
+// RecentInfo returns recently played tracks, newest first.
+func (c *Client) RecentInfo() ([]Recent, error) {
+	var r struct {
+		RecentInfo []Recent `json:"recent_info"`
+	}
+	err := c.get("netusb/getRecentInfo", &r)
+	return r.RecentInfo, err
+}
