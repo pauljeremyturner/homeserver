@@ -60,7 +60,9 @@ services:
       - 8090:8090
     environment:
       # Renderer target is env-driven — swapping devices is just changing
-      # these two values, no code change.
+      # these values, no code change. RENDERER_MUSICCAST_URL (a Yamaha
+      # MusicCast receiver) wins over the AVTransport pair when set.
+      - RENDERER_MUSICCAST_URL=${RENDERER_MUSICCAST_URL}
       - RENDERER_CONTROL_URL=${RENDERER_CONTROL_URL}
       - RENDERER_SERVICE_TYPE=${RENDERER_SERVICE_TYPE}
       - POLL_INTERVAL_SECONDS=${NOWPLAYING_POLL_INTERVAL_SECONDS}

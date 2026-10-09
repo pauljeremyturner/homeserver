@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"homeserver/internal/dlna"
 )
 
 //go:embed web
@@ -72,11 +70,6 @@ func envOr(key, fallback string) string {
 }
 
 func main() {
-	controlURL := os.Getenv("RENDERER_CONTROL_URL")
-	if controlURL == "" {
-		log.Fatal("RENDERER_CONTROL_URL is required")
-	}
-	serviceType := envOr("RENDERER_SERVICE_TYPE", "urn:schemas-upnp-org:service:AVTransport:1")
 	pollSeconds, err := strconv.Atoi(envOr("POLL_INTERVAL_SECONDS", "3"))
 	if err != nil || pollSeconds <= 0 {
 		pollSeconds = 3
@@ -86,7 +79,25 @@ func main() {
 	s := &store{}
 	art := newArtCache(os.Getenv("PLEX_URL"), os.Getenv("PLEX_TOKEN"))
 
-	go pollLoop(s, art, newDeviceNames(), controlURL, serviceType, time.Duration(pollSeconds)*time.Second)
+	// A Yamaha MusicCast receiver playing from its own inputs never shows
+	// it on AVTransport, so when its address is given, poll its own API.
+	var r renderer
+	if musiccastURL := os.Getenv("RENDERER_MUSICCAST_URL"); musiccastURL != "" {
+		r = newMusiccastRenderer(musiccastURL, art)
+	} else {
+		controlURL := os.Getenv("RENDERER_CONTROL_URL")
+		if controlURL == "" {
+			log.Fatal("RENDERER_MUSICCAST_URL or RENDERER_CONTROL_URL is required")
+		}
+		r = &dlnaRenderer{
+			controlURL:  controlURL,
+			serviceType: envOr("RENDERER_SERVICE_TYPE", "urn:schemas-upnp-org:service:AVTransport:1"),
+			art:         art,
+			names:       newDeviceNames(),
+		}
+	}
+
+	go pollLoop(s, r, time.Duration(pollSeconds)*time.Second)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/now-playing", func(w http.ResponseWriter, r *http.Request) {
@@ -94,12 +105,12 @@ func main() {
 		json.NewEncoder(w).Encode(s.get())
 	})
 	mux.HandleFunc("/api/art", art.serveHTTP)
-	mux.HandleFunc("/api/toggle", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
+	mux.HandleFunc("/api/toggle", func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
 			http.Error(w, "POST only", http.StatusMethodNotAllowed)
 			return
 		}
-		state, err := togglePlayback(controlURL, serviceType)
+		state, err := r.toggle()
 		if err != nil {
 			log.Printf("toggle: %v", err)
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -116,58 +127,20 @@ func main() {
 	}
 	mux.Handle("/", http.FileServer(http.FS(webRoot)))
 
-	log.Printf("nowplaying listening on %s, polling %s every %ds", addr, controlURL, pollSeconds)
+	log.Printf("nowplaying listening on %s, polling %s every %ds", addr, r.describe(), pollSeconds)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
-// togglePlayback pauses the renderer if it's playing, otherwise resumes it,
-// deciding from the renderer's live state rather than the last poll.
-func togglePlayback(controlURL, serviceType string) (string, error) {
-	state, err := dlna.GetTransportState(controlURL, serviceType)
-	if err != nil {
-		return "", err
-	}
-	if state == "PLAYING" {
-		if err := dlna.Pause(controlURL, serviceType); err != nil {
-			return "", err
-		}
-		return "PAUSED_PLAYBACK", nil
-	}
-	if err := dlna.Play(controlURL, serviceType); err != nil {
-		return "", err
-	}
-	return "PLAYING", nil
-}
-
-func pollLoop(s *store, art *artCache, names *deviceNames, controlURL, serviceType string, interval time.Duration) {
+func pollLoop(s *store, r renderer, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	poll := func() {
-		state, err := dlna.GetTransportState(controlURL, serviceType)
+		np, err := r.poll()
 		if err != nil {
-			log.Printf("poll: GetTransportInfo failed: %v", err)
+			log.Printf("poll: %v", err)
 			s.markStale()
 			return
-		}
-
-		np := nowPlaying{State: state}
-		if state == "PLAYING" || state == "PAUSED_PLAYBACK" {
-			pos, err := dlna.GetPositionInfo(controlURL, serviceType)
-			if err != nil {
-				log.Printf("poll: GetPositionInfo failed: %v", err)
-				s.markStale()
-				return
-			}
-			np.Title = pos.Title
-			np.Artist = pos.Artist
-			np.Album = pos.Album
-			np.TrackNumber = pos.TrackNumber
-			np.AlbumArtURL = art.resolve(pos.AlbumArtURL, pos.Album, pos.Artist)
-			np.Duration = pos.Duration
-			np.RelTime = pos.RelTime
-			np.Source = names.lookup(pos.TrackURI)
-			np.Renderer = names.lookup(controlURL)
 		}
 		s.set(np)
 	}

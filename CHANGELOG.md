@@ -3,6 +3,16 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.14.0 - 2026-10-09
+
+### Added
+- nowplaying: `RENDERER_MUSICCAST_URL` points it at a Yamaha MusicCast
+  receiver (e.g. the R-N602, `http://192.168.0.89`) and reads what's playing,
+  and pauses/resumes, through its MusicCast API instead of AVTransport. Such
+  a receiver playing from its own Server input left AVTransport at
+  `NO_MEDIA_PRESENT`, so the display said nothing was playing. `source` is
+  the receiver's input ("Server", "Net Radio", ...), `renderer` its name.
+
 ## 1.13.0 - 2026-10-08
 
 ### Added
