@@ -1,0 +1,8 @@
+# The one Wayland compositor driving the t530's screens (the GPU allows a
+# single DRM master). seatd-launch gives sway the seat without logind.
+FROM fedora:44
+RUN dnf -y install --setopt=install_weak_deps=False sway seatd grim \
+ && dnf clean all
+COPY sway.config /etc/sway/kiosk.config
+COPY sway-start.sh /usr/local/bin/sway-start
+ENTRYPOINT ["/usr/local/bin/sway-start"]

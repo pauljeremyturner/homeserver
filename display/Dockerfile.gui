@@ -1,0 +1,31 @@
+# info-gui or photo-gui (pick with the APP build arg), drawing into the sway
+# container's Wayland session. Gio needs cgo against Wayland/EGL, hence the
+# Debian builder rather than the static distroless one the servers use.
+FROM golang:1.26-trixie AS build
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      pkg-config libwayland-dev libxkbcommon-dev libegl-dev libgles-dev \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY go.mod go.sum .
+RUN go mod download
+COPY internal ./internal
+COPY gen ./gen
+COPY cmd ./cmd
+ARG APP
+ARG VERSION=dev
+RUN go build -tags nox11,novulkan -ldflags "-X main.version=${VERSION}" -o /app ./cmd/${APP}
+
+FROM debian:trixie-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libwayland-client0 libwayland-cursor0 libwayland-egl1 libxkbcommon0 \
+      libegl1 libgles2 libegl-mesa0 libgl1-mesa-dri ca-certificates tzdata \
+ && rm -rf /var/lib/apt/lists/*
+# Named after the app: Gio makes the binary's name the Wayland app_id,
+# which sway.config matches on.
+ARG APP
+COPY --from=build /app /usr/local/bin/${APP}
+ENV APP=${APP}
+COPY display/gui-start.sh /usr/local/bin/gui-start
+ENTRYPOINT ["/usr/local/bin/gui-start"]

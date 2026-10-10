@@ -40,7 +40,7 @@ const fadeTime = time.Second
 
 func main() {
 	server := flag.String("server", envOr("PHOTO_SERVER_ADDR", "localhost:9092"), "photo-server gRPC address")
-	kiosk := flag.Bool("kiosk", false, "full screen with no window decorations (for cage)")
+	kiosk := flag.Bool("kiosk", false, "full screen with no window decorations (for cage or sway)")
 	shot := flag.String("screenshot", "", "render one 800x480 frame of the current photo to this PNG and exit")
 	flag.Parse()
 	log.Printf("photo-gui %s, server %s", version, *server)
@@ -67,9 +67,13 @@ func main() {
 	go func() {
 		w.Option(app.Title("Photos"), app.Size(unit.Dp(800), unit.Dp(480)))
 		if *kiosk {
-			// cage has no server-side decorations, so without this Gio
-			// draws its own title bar.
-			w.Option(app.Fullscreen.Option(), app.Decorated(true))
+			// The compositor sizes the window to the screen (cage does it to
+			// every window, sway by a rule in display/sway.config). Asking
+			// for Fullscreen ourselves breaks under sway: its first configure
+			// is 0x0 and Gio can't make an EGL surface that size. Decorated:
+			// neither has server-side decorations, so without it Gio draws
+			// its own title bar.
+			w.Option(app.Decorated(true))
 		}
 		if err := run(w, photopb.NewPhotoServiceClient(conn), s); err != nil {
 			log.Fatal(err)

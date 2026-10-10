@@ -1,0 +1,77 @@
+# Display clients for the HP t530: sway owns the screens and info-gui and
+# photo-gui draw into it through the Wayland socket in the shared "wayland"
+# volume. The servers they show stay on the Mac Mini.
+#
+# Usage, on the t530: cp .env.example .env, fill it in, then
+#   VERSION=$(git describe --tags --always) docker compose up -d --build
+x-gui: &gui
+  restart: unless-stopped
+  depends_on:
+    sway:
+      condition: service_healthy
+  security_opt:
+    - label:disable # SELinux would deny the GPU and the socket otherwise
+  devices:
+    - /dev/dri
+  volumes:
+    - wayland:/run/wayland
+  environment: &gui-env
+    XDG_RUNTIME_DIR: /run/wayland
+    WAYLAND_DISPLAY: wayland-1
+    TZ: ${TZ:-Europe/London}
+
+services:
+  sway:
+    build:
+      context: .
+      dockerfile: Dockerfile.sway
+    container_name: sway
+    privileged: true # DRM master, VT and input devices
+    volumes:
+      - wayland:/run/wayland
+      - /run/udev:/run/udev:ro
+    environment:
+      XDG_RUNTIME_DIR: /run/wayland
+      INFO_OUTPUT: ${INFO_OUTPUT:-DP-1}
+      PHOTO_OUTPUT: ${PHOTO_OUTPUT:-DP-2}
+      INFO_TRANSFORM: ${INFO_TRANSFORM:-normal}
+      PHOTO_TRANSFORM: ${PHOTO_TRANSFORM:-normal}
+      # WLR_BACKENDS=headless (with WLR_HEADLESS_OUTPUTS=2 and the outputs
+      # set to HEADLESS-1/2) runs without screens, for testing.
+      WLR_BACKENDS: ${WLR_BACKENDS:-}
+      WLR_HEADLESS_OUTPUTS: ${WLR_HEADLESS_OUTPUTS:-}
+      WLR_LIBINPUT_NO_DEVICES: 1 # no keyboard or mouse attached
+    healthcheck:
+      test: ["CMD", "test", "-S", "/run/wayland/wayland-1"]
+      interval: 2s
+      retries: 30
+    restart: unless-stopped
+
+  info-gui:
+    <<: *gui
+    build:
+      context: ..
+      dockerfile: display/Dockerfile.gui
+      args:
+        - APP=info-gui
+        - VERSION=${VERSION:-dev}
+    container_name: info-gui
+    environment:
+      <<: *gui-env
+      INFO_SERVER_ADDR: ${INFO_SERVER_ADDR}
+
+  photo-gui:
+    <<: *gui
+    build:
+      context: ..
+      dockerfile: display/Dockerfile.gui
+      args:
+        - APP=photo-gui
+        - VERSION=${VERSION:-dev}
+    container_name: photo-gui
+    environment:
+      <<: *gui-env
+      PHOTO_SERVER_ADDR: ${PHOTO_SERVER_ADDR}
+
+volumes:
+  wayland:

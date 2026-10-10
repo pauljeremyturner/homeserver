@@ -1,0 +1,18 @@
+--- a/drivers/gpu/drm/amd/display/dc/link/link_detection.c	2026-10-10 14:53:20.037046339 +0100
++++ b/drivers/gpu/drm/amd/display/dc/link/link_detection.c	2026-10-10 14:53:20.084780061 +0100
+@@ -1446,6 +1446,15 @@
+ 	if (is_hpd_high) {
+ 		*type = dc_connection_single;
+ 		/* TODO: need to do the actual detection */
++	} else if (link->connector_signal == SIGNAL_TYPE_DISPLAY_PORT &&
++		   link_detect_ddc_probe(link)) {
++		/* Local patch: some passive DP->HDMI adapters never raise HPD
++		 * but pass DDC through. A valid EDID on DDC means a sink is there;
++		 * detect_dp() then takes the passive dongle (DVI/HDMI) path.
++		 */
++		DRM_INFO("link=%d: HPD low but EDID on DDC, assuming passive dongle\n",
++			 link->link_index);
++		*type = dc_connection_single;
+ 	} else {
+ 		*type = dc_connection_none;
+ 		if (link->connector_signal == SIGNAL_TYPE_EDP) {
