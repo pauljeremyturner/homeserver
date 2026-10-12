@@ -10,7 +10,7 @@ import (
 
 func TestPageAt(t *testing.T) {
 	start := time.Unix(1_800_000_000, 0) // a whole number of 150s rotations
-	cycle := pageCycle(60, 30, 30)
+	cycle := pageCycle(60, 30, 30, 30, false)
 	u := pageAt(start.Add(59*time.Second), cycle)
 	if u.Page != displaypb.Page_PAGE_WEATHER || u.SinceUnix != start.Unix() || u.NextUnix != start.Add(time.Minute).Unix() || u.PeriodSeconds != 60 || len(u.Cycle) != 4 {
 		t.Errorf("first minute: %v", u)
@@ -28,6 +28,15 @@ func TestPageAt(t *testing.T) {
 		if u := pageAt(start.Add(c.at), cycle); u.Page != c.page || u.PeriodSeconds != c.period {
 			t.Errorf("at +%v: %v for %ds", c.at, u.Page, u.PeriodSeconds)
 		}
+	}
+}
+
+func TestPageCycleSky(t *testing.T) {
+	if c := pageCycle(60, 30, 30, 45, true); len(c) != 5 || c[4].Page != displaypb.Page_PAGE_SKY || c[4].Seconds != 45 {
+		t.Errorf("dark night: %v", c)
+	}
+	if c := pageCycle(60, 30, 30, 45, false); len(c) != 4 {
+		t.Errorf("no dark night: %v", c)
 	}
 }
 

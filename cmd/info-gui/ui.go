@@ -128,6 +128,8 @@ func (u *ui) page(gtx layout.Context, now time.Time, s snapshot, page displaypb.
 	case displaypb.Page_PAGE_PLANETS:
 		// The planets animate from when the page came up.
 		return u.planets(gtx, now, s.planets, elapsed, period)
+	case displaypb.Page_PAGE_SKY:
+		return u.sky(gtx, now, s)
 	// An older server still cycles through a separate metals page.
 	case displaypb.Page_PAGE_MARKETS, displaypb.Page_PAGE_METALS:
 		return u.markets(gtx, now, s, s.week)

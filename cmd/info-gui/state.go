@@ -17,6 +17,7 @@ import (
 	displaypb "homeserver/gen/display"
 	newspb "homeserver/gen/news"
 	planetspb "homeserver/gen/planets"
+	skypb "homeserver/gen/sky"
 	weatherpb "homeserver/gen/weather"
 )
 
@@ -33,6 +34,7 @@ type state struct {
 	crypto    map[int32]map[string]*cryptopb.CryptoUpdate
 	wallet    *cryptopb.WalletBalanceUpdate
 	planets   *planetspb.PlanetsUpdate
+	sky       *skypb.SkyUpdate
 	page      *displaypb.PageUpdate
 	boardTemp float64
 	hasTemp   bool
@@ -46,6 +48,7 @@ type snapshot struct {
 	week, halfYear coins
 	wallet         *cryptopb.WalletBalanceUpdate
 	planets        *planetspb.PlanetsUpdate
+	sky            *skypb.SkyUpdate
 	page           *displaypb.PageUpdate
 	boardTemp      float64
 	hasTemp        bool
@@ -88,6 +91,7 @@ func (s *state) snapshot() snapshot {
 		halfYear:  s.coins(halfYearDays),
 		wallet:    s.wallet,
 		planets:   s.planets,
+		sky:       s.sky,
 		page:      s.page,
 		boardTemp: s.boardTemp,
 		hasTemp:   s.hasTemp,
@@ -138,6 +142,7 @@ func startStreams(ctx context.Context, addr string, s *state, changed func()) er
 	newsClient := newspb.NewNewsServiceClient(conn)
 	cryptoClient := cryptopb.NewCryptoServiceClient(conn)
 	planetClient := planetspb.NewPlanetServiceClient(conn)
+	skyClient := skypb.NewSkyServiceClient(conn)
 	displayClient := displaypb.NewDisplayServiceClient(conn)
 
 	go streamLoop(ctx, s, "weather",
@@ -171,6 +176,12 @@ func startStreams(ctx context.Context, addr string, s *state, changed func()) er
 			return planetClient.StreamPlanets(ctx, &planetspb.StreamPlanetsRequest{})
 		},
 		func(u *planetspb.PlanetsUpdate) { s.update(func(s *state) { s.planets = u }); changed() },
+	)
+	go streamLoop(ctx, s, "sky",
+		func(ctx context.Context) (grpc.ServerStreamingClient[skypb.SkyUpdate], error) {
+			return skyClient.StreamSky(ctx, &skypb.StreamSkyRequest{})
+		},
+		func(u *skypb.SkyUpdate) { s.update(func(s *state) { s.sky = u }); changed() },
 	)
 	go streamLoop(ctx, s, "page",
 		func(ctx context.Context) (grpc.ServerStreamingClient[displaypb.PageUpdate], error) {

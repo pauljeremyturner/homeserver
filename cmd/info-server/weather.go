@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	weatherpb "homeserver/gen/weather"
@@ -188,6 +189,11 @@ var (
 // maxForecastAge is how old a forecast can stand in for a failed fetch.
 const maxForecastAge = 6 * time.Hour
 
+// weatherCoords is the latitude and longitude the weather is for, once
+// wttr.in has said (it resolves LOCATION, or the IP's location), for the
+// sky to use too.
+var weatherCoords atomic.Pointer[[2]float64]
+
 // fetchWeather gets the weather at loc, or wherever wttr.in places this
 // server's IP if loc is nil.
 func fetchWeather(loc *location) (*weatherpb.WeatherUpdate, error) {
@@ -237,6 +243,11 @@ func fetchWeather(loc *location) (*weatherpb.WeatherUpdate, error) {
 	if len(w.NearestArea) > 0 {
 		na := w.NearestArea[0]
 		lat, lon = na.Latitude, na.Longitude
+		if la, errLa := strconv.ParseFloat(lat, 64); errLa == nil {
+			if lo, errLo := strconv.ParseFloat(lon, 64); errLo == nil {
+				weatherCoords.Store(&[2]float64{la, lo})
+			}
+		}
 		area, country := "", ""
 		if len(na.AreaName) > 0 {
 			area = na.AreaName[0].Value

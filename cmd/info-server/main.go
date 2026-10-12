@@ -19,6 +19,7 @@ import (
 	displaypb "homeserver/gen/display"
 	newspb "homeserver/gen/news"
 	planetspb "homeserver/gen/planets"
+	skypb "homeserver/gen/sky"
 	weatherpb "homeserver/gen/weather"
 )
 
@@ -78,6 +79,7 @@ func main() {
 	pageSeconds := positiveEnv("PAGE_SECONDS", 60)
 	marketsSeconds := positiveEnv("MARKETS_PAGE_SECONDS", 30)
 	planetsSeconds := positiveEnv("PLANETS_PAGE_SECONDS", 30)
+	skySeconds := positiveEnv("SKY_PAGE_SECONDS", 30)
 	// The planets' elements are only good from 1800, and past ~50 years
 	// Mercury laps too fast for a display's animation to follow.
 	planetsYears, err := strconv.Atoi(envOr("PLANETS_YEARS", "10"))
@@ -106,12 +108,16 @@ func main() {
 	}
 	walletBC := broadcast.New[*cryptopb.WalletBalanceUpdate]()
 	planetsBC := broadcast.New[*planetspb.PlanetsUpdate]()
+	skyBC := broadcast.New[*skypb.SkyUpdate]()
 	pageBC := broadcast.New[*displaypb.PageUpdate]()
 
 	go pollWeather(weatherBC, loc)
 	go pollNews(newsBC)
 	go pollPlanets(planetsBC, planetsYears)
-	go cyclePages(pageBC, pageCycle(pageSeconds, marketsSeconds, planetsSeconds))
+	go pollSky(skyBC, loc)
+	go cyclePages(pageBC, func(t time.Time) []*displaypb.PageSlot {
+		return pageCycle(pageSeconds, marketsSeconds, planetsSeconds, skySeconds, darkTonight(loc, t))
+	})
 	go pollCrypto(cryptoBCs)
 	if walletAddr != "" {
 		go pollWallet(walletAddr, walletLabel, walletBC)
@@ -129,6 +135,7 @@ func main() {
 	newspb.RegisterNewsServiceServer(srv, &newsServer{bc: newsBC})
 	cryptopb.RegisterCryptoServiceServer(srv, &cryptoServer{bcs: cryptoBCs, walletBC: walletBC})
 	planetspb.RegisterPlanetServiceServer(srv, &planetServer{bc: planetsBC})
+	skypb.RegisterSkyServiceServer(srv, &skyServer{bc: skyBC})
 	displaypb.RegisterDisplayServiceServer(srv, &displayServer{bc: pageBC})
 
 	log.Printf("info-server %s listening on %s", version, addr)

@@ -22,6 +22,7 @@ enum Page {
   PAGE_METALS = 3;
   PAGE_PLANETS = 4; // the planets over the last years, then today
   PAGE_MARKETS_6M = 5; // PAGE_MARKETS with six months of prices, not a week
+  PAGE_SKY = 6; // tonight's constellations; left out of the cycle on nights that never get dark
 }
 
 message PageUpdate {

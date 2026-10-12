@@ -77,6 +77,13 @@ func above(lat, lon float64, t time.Time) float64 {
 	return deg(math.Asin(sinH)) - h0
 }
 
+// Position is where the Moon is on the sky at t: its geocentric right
+// ascension (0 to 360) and declination, in degrees.
+func Position(t time.Time) (raDeg, decDeg float64) {
+	ra, dec, _ := position(t)
+	return math.Mod(deg(ra)+360, 360), deg(dec)
+}
+
 // position is the Moon's geocentric right ascension and declination
 // (radians) and its horizontal parallax (degrees) at t, per the
 // Astronomical Almanac's low-precision formulae.

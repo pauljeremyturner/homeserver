@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package sky;
+
+option go_package = "homeserver/gen/sky";
+
+service SkyService {
+  // StreamSky pushes tonight's sky every 10 minutes, immediately sending
+  // the latest on subscribe.
+  rpc StreamSky(StreamSkyRequest) returns (stream SkyUpdate);
+}
+
+message StreamSkyRequest {}
+
+message SkyUpdate {
+  int64 computed_at_unix = 1;
+  // dark is false when the Sun stays within 12 degrees of the horizon all
+  // night (around midsummer this far north): there's no chart then, and
+  // displays skip the page.
+  bool dark = 2;
+  // The night: nautical dusk to dawn, the Sun 12 degrees down.
+  int64 dusk_unix = 3;
+  int64 dawn_unix = 4;
+  // view_unix is when the chart is for: now if it's dark, else an hour
+  // after dusk.
+  int64 view_unix = 5;
+  // The prominent constellations, most prominent first, including those
+  // below the horizon at view_unix (for when they're best).
+  repeated Constellation constellations = 6;
+  // The bright planets and the Moon, if above the horizon at view_unix.
+  repeated Body bodies = 7;
+}
+
+message Constellation {
+  string name = 1;
+  int32 rank = 2; // 1 the most prominent, 2 the next
+  // Its stick figure's lines, only the parts above the horizon.
+  repeated Path lines = 3;
+  // centre is where to name it; it may be below the horizon.
+  Point centre = 4;
+  // rising is true if it's climbing at view_unix.
+  bool rising = 5;
+  // When in the night it's highest, and where it is then.
+  int64 best_unix = 6;
+  Point best = 7;
+}
+
+// Path is a line on the sky, as altitude and azimuth (degrees; azimuth
+// from north through east).
+message Path {
+  repeated float alt_deg = 1;
+  repeated float az_deg = 2;
+}
+
+message Point {
+  float alt_deg = 1;
+  float az_deg = 2;
+}
+
+message Body {
+  string name = 1; // "Moon", "Venus", "Mars", "Jupiter" or "Saturn"
+  Point at = 2;
+}
