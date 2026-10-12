@@ -3,6 +3,18 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.17.0 - 2026-10-12
+
+### Added
+- info-gui: a night sky page, fifth in the rotation: a chart of tonight's
+  sky (the prominent constellations, the bright planets and the Moon) for
+  an hour after dark, or as it is once dark, with the cloud forecast and
+  the Moon then, and the best constellations to look for and where. It's
+  left out of the rotation on nights that never get dark (at Glasgow,
+  about mid-May to late July).
+- info-server: a `SkyService` stream (`proto/sky`) and `SKY_PAGE_SECONDS`
+  (`INFO_SKY_PAGE_SECONDS` in `.env`, default 30).
+
 ## 1.16.0 - 2026-10-12
 
 ### Added
