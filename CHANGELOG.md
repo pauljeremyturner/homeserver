@@ -3,6 +3,24 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.16.0 - 2026-10-12
+
+### Added
+- info-gui: once the planets page reaches today, Earth's orbit is marked
+  with the equinoxes, the solstices and Christmas.
+- `display/`: docker compose for a display box running info-gui and
+  photo-gui at once, one per screen, under a sway container (now on a Dell
+  XPS 13: info on its own screen, photos on a USB-C one). Screens and their
+  rotation are set in `display/.env`. `display/amdgpu/` keeps the kernel
+  patch the HP t530 needed for its passive DP->HDMI adapter.
+
+### Changed
+- info-server: a failed forecast fetch keeps the last forecast (up to 6
+  hours old) on screen instead of blanking the week and the next hours.
+- info-gui, photo-gui: `-kiosk` no longer asks for fullscreen itself (sway
+  sized such a window 0x0 and it failed to start); the compositor
+  fullscreens them.
+
 ## 1.15.0 - 2026-10-09
 
 ### Added
