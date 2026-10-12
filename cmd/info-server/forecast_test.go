@@ -37,6 +37,20 @@ func TestApplyForecast(t *testing.T) {
 	r.Daily.Min = []float64{10.2, 9.5}
 	r.Current.WindDeg = 200
 
+	// The same forecast standing in for a failed fetch the next morning:
+	// its first day is over, and its current conditions aren't used.
+	var later weatherpb.WeatherUpdate
+	applyOutlook(&later, &r, time.Unix(midnight+24*3600+9*3600, 0)) // 09:00 day two
+	if len(later.Daily) != 1 || later.Daily[0].Date != "2026-10-01" {
+		t.Errorf("next morning's daily: got %v, want just 2026-10-01", later.Daily)
+	}
+	if len(later.Hourly) != 15 || later.Hourly[0].TimeUnix != midnight+33*3600 {
+		t.Errorf("next morning's hourly: got %d hours", len(later.Hourly))
+	}
+	if later.WindDir != "" {
+		t.Errorf("applyOutlook set the current wind dir to %q", later.WindDir)
+	}
+
 	var u weatherpb.WeatherUpdate
 	applyForecast(&u, &r, time.Unix(midnight+13*3600+1800, 0)) // 13:30
 	if len(u.Hourly) != 24 || u.Hourly[0].TimeUnix != midnight+13*3600 || u.Hourly[0].TempC != 13 {

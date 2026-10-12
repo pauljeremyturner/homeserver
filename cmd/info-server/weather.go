@@ -178,6 +178,16 @@ func parseLocation(latLon, name string) (*location, error) {
 	}, nil
 }
 
+// The last forecast fetched, and when, for fetchWeather to fall back on.
+// Only pollWeather's goroutine fetches the weather, so no lock.
+var (
+	lastForecast   *openMeteoResponse
+	lastForecastAt time.Time
+)
+
+// maxForecastAge is how old a forecast can stand in for a failed fetch.
+const maxForecastAge = 6 * time.Hour
+
 // fetchWeather gets the weather at loc, or wherever wttr.in places this
 // server's IP if loc is nil.
 func fetchWeather(loc *location) (*weatherpb.WeatherUpdate, error) {
@@ -269,12 +279,20 @@ func fetchWeather(loc *location) (*weatherpb.WeatherUpdate, error) {
 		}
 	}
 
-	// Without the forecast, wttr.in's current conditions still stand.
+	// Without the forecast, wttr.in's current conditions still stand, with
+	// the last forecast's outlook if it's recent enough, so a blip in the
+	// connection doesn't blank the week and the next hours.
 	if lat != "" && lon != "" {
+		now := time.Now()
 		if f, err := fetchOpenMeteo(lat, lon); err != nil {
 			log.Printf("weather: forecast fetch failed: %v", err)
+			if lastForecast != nil && now.Sub(lastForecastAt) < maxForecastAge {
+				log.Printf("weather: showing the forecast from %s", lastForecastAt.Format("15:04"))
+				applyOutlook(update, lastForecast, now)
+			}
 		} else {
-			applyForecast(update, f, time.Now())
+			lastForecast, lastForecastAt = f, now
+			applyForecast(update, f, now)
 		}
 	}
 

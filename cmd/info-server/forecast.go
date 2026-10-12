@@ -79,7 +79,7 @@ func fetchOpenMeteo(lat, lon string) (*openMeteoResponse, error) {
 }
 
 // applyForecast replaces update's current conditions with Open-Meteo's and
-// adds its hourly forecast from now's hour and daily forecast from today.
+// adds its outlook (see applyOutlook).
 func applyForecast(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now time.Time) {
 	c := r.Current
 	update.CurrentCategory = categorizeWMO(c.WeatherCode)
@@ -92,7 +92,12 @@ func applyForecast(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now ti
 	update.WindBeaufort = beaufortName(update.WindKmph)
 	update.UvIndex = strconv.Itoa(int(math.Round(c.UVIndex)))
 	update.IsDay = c.IsDay == 1
+	applyOutlook(update, r, now)
+}
 
+// applyOutlook adds r's hourly forecast from now's hour and daily forecast
+// from today: r may be an earlier fetch's, standing in for a failed one.
+func applyOutlook(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now time.Time) {
 	h := r.Hourly
 	codes := make([]int, len(h.Time))
 	for i := range codes {
@@ -114,8 +119,11 @@ func applyForecast(update *weatherpb.WeatherUpdate, r *openMeteoResponse, now ti
 
 	zone := time.FixedZone("", r.UTCOffsetSeconds)
 	for d, midnight := range r.Daily.Time {
-		if d == forecastDays {
+		if len(update.Daily) == forecastDays {
 			break
+		}
+		if midnight+24*3600 <= now.Unix() {
+			continue // over, in an earlier fetch's forecast
 		}
 		day := &weatherpb.DayForecast{
 			Date: time.Unix(midnight, 0).In(zone).Format("2006-01-02"),
