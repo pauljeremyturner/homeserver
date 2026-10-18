@@ -113,8 +113,8 @@ func (u *ui) planetPanel(gtx layout.Context, p *planetspb.PlanetsUpdate, f float
 	earth := arcLerp(f32.Pt(h.XAu[k0], h.YAu[k0]), f32.Pt(h.XAu[k1], h.YAu[k1]), float32(f-float64(k0)))
 	for _, i := range idx {
 		o := p.Orbits[i]
-		if i == 2 {
-			u.zodiacBand(gtx, o, earth, named, c, scale)
+		if i == 2 && named {
+			u.zodiacBand(gtx, o, earth, c, scale)
 			continue
 		}
 		pts := make([]f32.Point, 0, len(o.XAu)+1)
@@ -207,12 +207,12 @@ func onOrbit(o *planetspb.Path, deg float64) f32.Point {
 var zodiac = []string{"Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
 	"Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"}
 
-// zodiacBand draws Earth's orbit o as a wide band of twelve sections shaded
-// alternately, one per sign: while Earth is in a section the Sun, seen from
-// Earth opposite it, is in that sign. If named, each section is named just
-// outside its middle, moved along clear of Earth's own name if Earth is near
-// it. The panel is centred on c at scale pixels per AU.
-func (u *ui) zodiacBand(gtx layout.Context, o *planetspb.Path, earth f32.Point, named bool, c, scale float32) {
+// zodiacBand draws Earth's orbit o, once the page reaches today, as a wide
+// band of twelve sections shaded alternately, one per sign: while Earth is in
+// a section the Sun, seen from Earth opposite it, is in that sign. Each
+// section is named just outside its middle, moved along clear of Earth's own
+// name if Earth is near it. The panel is centred on c at scale pixels per AU.
+func (u *ui) zodiacBand(gtx layout.Context, o *planetspb.Path, earth f32.Point, c, scale float32) {
 	width := float32(gtx.Dp(5))
 	gap := float32(gtx.Dp(6))
 	lineH := float32(gtx.Dp(14))
@@ -231,9 +231,6 @@ func (u *ui) zodiacBand(gtx layout.Context, o *planetspb.Path, earth f32.Point, 
 			pts = append(pts, f32.Pt(c+p.X*scale, c-p.Y*scale))
 		}
 		strokeLine(gtx.Ops, col, width, pts...)
-		if !named {
-			continue
-		}
 
 		th := (from + 15) * math.Pi / 180
 		if d := math.Remainder(th-earthTh, 2*math.Pi); math.Abs(d) < 12*math.Pi/180 {
