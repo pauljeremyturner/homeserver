@@ -19,7 +19,7 @@ import (
 // The planets page plays the planets' history, from info-server, up to
 // today: it waits a moment on the first frame, runs through the years
 // (easing in and out) for two thirds of the page's time, then holds on
-// today, with the seasons and Christmas marked on Earth's orbit.
+// today, with the signs of the zodiac and Christmas marked on Earth's orbit.
 const animDelay = 1500 * time.Millisecond
 
 // planetDot is each planet's dot radius, in dp, Mercury first.
@@ -62,13 +62,14 @@ func (u *ui) planets(gtx layout.Context, now time.Time, p *planetspb.PlanetsUpda
 		// The inner planets' trails are their last couple of months; the
 		// outer planets' go back to the start, showing how far they've come.
 		trail := int(60 * 24 * time.Hour / max(step, time.Hour))
+		named := !moving && f > 0
 		var marks []seasonMark
-		if !moving && f > 0 {
-			marks = seasonMarks(p, at)
+		if named {
+			marks = christmasMarks(p, at)
 		}
-		u.planetPanel(gtx, p, f, []int{0, 1, 2, 3}, size, trail, false, marks)
+		u.planetPanel(gtx, p, f, []int{0, 1, 2, 3}, size, trail, false, named, marks)
 		off := op.Offset(image.Pt(width-size, 0)).Push(gtx.Ops)
-		u.planetPanel(gtx, p, f, []int{4, 5, 6, 7}, size, frames, true, nil)
+		u.planetPanel(gtx, p, f, []int{4, 5, 6, 7}, size, frames, true, false, nil)
 		off.Pop()
 
 		u.labelLeft(gtx, 0, gtx.Dp(8), u.label(13, colDim, font.Medium, "INNER PLANETS"))
@@ -93,7 +94,7 @@ func (u *ui) planets(gtx layout.Context, now time.Time, p *planetspb.PlanetsUpda
 // scaled so the widest fills the box, marks on Earth's, the Sun, a trail of
 // up to trail frames behind each (fading unless whole), and each planet,
 // named, at frame f of its history.
-func (u *ui) planetPanel(gtx layout.Context, p *planetspb.PlanetsUpdate, f float64, idx []int, size, trail int, whole bool, marks []seasonMark) {
+func (u *ui) planetPanel(gtx layout.Context, p *planetspb.PlanetsUpdate, f float64, idx []int, size, trail int, whole, named bool, marks []seasonMark) {
 	c := float32(size) / 2
 	var reach float32
 	for _, i := range idx {
@@ -106,8 +107,16 @@ func (u *ui) planetPanel(gtx layout.Context, p *planetspb.PlanetsUpdate, f float
 	// Ecliptic x is to the right and y up, so the planets go anticlockwise.
 	pt := func(x, y float32) f32.Point { return f32.Pt(c+x*scale, c-y*scale) }
 
+	h := p.History[2]
+	k0 := int(f)
+	k1 := min(k0+1, len(h.XAu)-1)
+	earth := arcLerp(f32.Pt(h.XAu[k0], h.YAu[k0]), f32.Pt(h.XAu[k1], h.YAu[k1]), float32(f-float64(k0)))
 	for _, i := range idx {
 		o := p.Orbits[i]
+		if i == 2 {
+			u.zodiacBand(gtx, o, earth, named, c, scale)
+			continue
+		}
 		pts := make([]f32.Point, 0, len(o.XAu)+1)
 		for k := range o.XAu {
 			pts = append(pts, pt(o.XAu[k], o.YAu[k]))
@@ -118,10 +127,6 @@ func (u *ui) planetPanel(gtx layout.Context, p *planetspb.PlanetsUpdate, f float
 		strokeLine(gtx.Ops, col, float32(gtx.Dp(1)), pts...)
 	}
 	if len(marks) > 0 {
-		h := p.History[2]
-		k0 := int(f)
-		k1 := min(k0+1, len(h.XAu)-1)
-		earth := arcLerp(f32.Pt(h.XAu[k0], h.YAu[k0]), f32.Pt(h.XAu[k1], h.YAu[k1]), float32(f-float64(k0)))
 		u.markOrbit(gtx, marks, earth, c, scale)
 	}
 	fillCircle(gtx.Ops, colSun, c, c, float32(gtx.Dp(7)))
@@ -183,31 +188,71 @@ type seasonMark struct {
 
 var colChristmas = rgb(0xd9534f)
 
-// seasonMarks places the equinoxes and solstices on Earth's orbit, where the
-// Sun, seen from Earth, is at ecliptic longitude 0, 90, 180 and 270 degrees
-// (so Earth is opposite it), and Christmas where Earth was on the last 25
-// December before now, if the history goes back that far.
-func seasonMarks(p *planetspb.PlanetsUpdate, now time.Time) []seasonMark {
-	orbit := p.Orbits[2]
-	onOrbit := func(earthDeg float64) f32.Point {
-		th := earthDeg * math.Pi / 180
-		best, bestD := 0, math.Inf(1)
-		for k := range orbit.XAu {
-			d := math.Abs(math.Remainder(math.Atan2(float64(orbit.YAu[k]), float64(orbit.XAu[k]))-th, 2*math.Pi))
-			if d < bestD {
-				best, bestD = k, d
-			}
+// onOrbit is the point of orbit o, in AU, at heliocentric longitude deg.
+func onOrbit(o *planetspb.Path, deg float64) f32.Point {
+	th := deg * math.Pi / 180
+	best, bestD := 0, math.Inf(1)
+	for k := range o.XAu {
+		d := math.Abs(math.Remainder(math.Atan2(float64(o.YAu[k]), float64(o.XAu[k]))-th, 2*math.Pi))
+		if d < bestD {
+			best, bestD = k, d
 		}
-		r := math.Hypot(float64(orbit.XAu[best]), float64(orbit.YAu[best]))
-		return f32.Pt(float32(r*math.Cos(th)), float32(r*math.Sin(th)))
 	}
-	marks := []seasonMark{
-		{"Mar equinox", colDim, false, onOrbit(180)},
-		{"Jun solstice", colDim, false, onOrbit(270)},
-		{"Sep equinox", colDim, false, onOrbit(0)},
-		{"Dec solstice", colDim, false, onOrbit(90)},
-	}
+	r := math.Hypot(float64(o.XAu[best]), float64(o.YAu[best]))
+	return f32.Pt(float32(r*math.Cos(th)), float32(r*math.Sin(th)))
+}
 
+// zodiac is the signs of the (tropical) zodiac from Aries, which the Sun
+// enters at the March equinox, each 30 degrees of ecliptic longitude.
+var zodiac = []string{"Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+	"Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"}
+
+// zodiacBand draws Earth's orbit o as a wide band of twelve sections shaded
+// alternately, one per sign: while Earth is in a section the Sun, seen from
+// Earth opposite it, is in that sign. If named, each section is named just
+// outside its middle, moved along clear of Earth's own name if Earth is near
+// it. The panel is centred on c at scale pixels per AU.
+func (u *ui) zodiacBand(gtx layout.Context, o *planetspb.Path, earth f32.Point, named bool, c, scale float32) {
+	width := float32(gtx.Dp(5))
+	gap := float32(gtx.Dp(6))
+	lineH := float32(gtx.Dp(14))
+	earthTh := math.Atan2(float64(earth.Y), float64(earth.X))
+	for s, sign := range zodiac {
+		// Earth is at 180 degrees when the Sun enters Aries, at 0.
+		from := float64(180 + 30*s)
+		col := planetColour(2)
+		col.A = 150
+		if s%2 == 1 {
+			col.A = 55
+		}
+		pts := make([]f32.Point, 0, 31)
+		for d := 0; d <= 30; d++ {
+			p := onOrbit(o, from+float64(d))
+			pts = append(pts, f32.Pt(c+p.X*scale, c-p.Y*scale))
+		}
+		strokeLine(gtx.Ops, col, width, pts...)
+		if !named {
+			continue
+		}
+
+		th := (from + 15) * math.Pi / 180
+		if d := math.Remainder(th-earthTh, 2*math.Pi); math.Abs(d) < 12*math.Pi/180 {
+			th = earthTh + math.Copysign(13*math.Pi/180, d)
+		}
+		p := onOrbit(o, th*180/math.Pi)
+		r := float32(math.Hypot(float64(p.X), float64(p.Y))) * scale
+		dx, dy := float32(math.Cos(th)), -float32(math.Sin(th))
+		l := u.label(11, colDim, font.Normal, sign)
+		half := float32(math.Abs(float64(dx)))*float32(u.labelWidth(gtx, l))/2 + float32(math.Abs(float64(dy)))*lineH/2
+		rr := r + width/2 + gap + half
+		u.labelAt(gtx, int(c+dx*rr), int(c+dy*rr), l)
+	}
+}
+
+// christmasMarks marks Christmas where Earth was on the last 25 December
+// before now, if the history goes back that far.
+func christmasMarks(p *planetspb.PlanetsUpdate, now time.Time) []seasonMark {
+	var marks []seasonMark
 	h := p.History[2]
 	step := float64(p.HistoryStepSeconds)
 	xmas := time.Date(now.Year(), time.December, 25, 12, 0, 0, 0, now.Location())
