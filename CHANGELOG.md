@@ -3,6 +3,17 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.18.0 - 2026-10-18
+
+### Changed
+- info-gui: Earth's orbit on the planets page is a wider band in twelve
+  sections, shaded alternately, one per sign of the zodiac, each named once
+  the page reaches today. The equinox and solstice marks are gone;
+  Christmas stays.
+- control: each host on the page has a tick box, and Shutdown powers off
+  only the ticked ones (the rest show as skipped). Hosts can be named for
+  the page in `CONTROL_HOSTS` as `Name=root@address`.
+
 ## 1.17.0 - 2026-10-12
 
 ### Added
