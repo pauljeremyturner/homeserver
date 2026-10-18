@@ -130,8 +130,9 @@ services:
       - MAX_UPLOAD_MB=${PHOTO_UPLOAD_MAX_MB:-100}
     restart: unless-stopped
 
-  # Phone page with a Shutdown button: http://<host>:8093. Powers off each
-  # host in CONTROL_HOSTS in turn, as root over SSH, with a key it makes on
+  # Phone page with a Shutdown button: http://<host>:8093. Powers off the
+  # hosts ticked on the page, in their CONTROL_HOSTS order (names as
+  # Name=root@address), as root over SSH, with a key it makes on
   # first start in config/control (its public half is in `docker logs
   # control`; add it to /root/.ssh/authorized_keys on every host).
   control:

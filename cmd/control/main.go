@@ -1,7 +1,8 @@
 // control serves a phone-sized page for running the home setup: for now one
-// Shutdown button, which powers off each host in CONTROL_HOSTS in turn over
-// SSH (as root, with a key it makes itself). The server's own host goes last
-// in the list, as powering it off ends this service too.
+// Shutdown button, which powers off the hosts ticked on the page, in their
+// CONTROL_HOSTS order, over SSH (as root, with a key it makes itself). The
+// server's own host goes last in the list, as powering it off ends this
+// service too.
 package main
 
 import (
@@ -35,12 +36,7 @@ func envOr(key, fallback string) string {
 func main() {
 	addr := envOr("HTTP_ADDR", ":8093")
 	sshDir := envOr("SSH_DIR", "/ssh")
-	var hosts []string
-	for _, h := range strings.Split(os.Getenv("CONTROL_HOSTS"), ",") {
-		if h = strings.TrimSpace(h); h != "" {
-			hosts = append(hosts, h)
-		}
-	}
+	hosts := parseHosts(os.Getenv("CONTROL_HOSTS"))
 	if len(hosts) == 0 {
 		log.Printf("CONTROL_HOSTS is empty: Shutdown will have nothing to do")
 	}
@@ -61,8 +57,16 @@ func main() {
 		writeJSON(w, c.status())
 	})
 	mux.HandleFunc("POST /rpc/shutdown", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("shutdown requested from %s", r.RemoteAddr)
-		c.shutdown(hosts)
+		// The body lists the ticked hosts by their place in CONTROL_HOSTS.
+		var req struct {
+			Hosts []int `json:"hosts"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		log.Printf("shutdown of hosts %v requested from %s", req.Hosts, r.RemoteAddr)
+		c.shutdown(hosts, req.Hosts)
 		writeJSON(w, c.status())
 	})
 
@@ -73,6 +77,29 @@ func main() {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+// host is one machine the page can power off: Name is what the page calls
+// it, Target the user@address ssh logs in to.
+type host struct{ Name, Target string }
+
+// parseHosts reads CONTROL_HOSTS: comma-separated user@address, each
+// optionally named as "Name=user@address". An unnamed host is called by its
+// target.
+func parseHosts(s string) []host {
+	var hosts []host
+	for _, h := range strings.Split(s, ",") {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		name, target, named := strings.Cut(h, "=")
+		if !named {
+			name, target = h, h
+		}
+		hosts = append(hosts, host{Name: strings.TrimSpace(name), Target: strings.TrimSpace(target)})
+	}
+	return hosts
 }
 
 // ensureKey makes the SSH key on first start and logs its public half, to go
@@ -99,9 +126,11 @@ const (
 	stateStopping = "shutting down"
 	stateOff      = "off"
 	stateFailed   = "failed"
+	stateSkipped  = "skipped" // not ticked
 )
 
 type hostStatus struct {
+	Name  string `json:"name"`
 	Host  string `json:"host"`
 	State string `json:"state"`
 	Error string `json:"error,omitempty"`
@@ -122,10 +151,10 @@ type controller struct {
 	hosts   []hostStatus
 }
 
-func (c *controller) reset(hosts []string) {
+func (c *controller) reset(hosts []host) {
 	c.hosts = make([]hostStatus, len(hosts))
 	for i, h := range hosts {
-		c.hosts[i] = hostStatus{Host: h, State: stateWaiting}
+		c.hosts[i] = hostStatus{Name: h.Name, Host: h.Target, State: stateWaiting}
 	}
 }
 
@@ -139,13 +168,14 @@ func (c *controller) set(i int, state, errText string) {
 	c.mu.Lock()
 	c.hosts[i].State, c.hosts[i].Error = state, errText
 	c.mu.Unlock()
-	log.Printf("%s: %s %s", c.hosts[i].Host, state, errText)
+	log.Printf("%s (%s): %s %s", c.hosts[i].Name, c.hosts[i].Host, state, errText)
 }
 
-// shutdown starts powering off the hosts in order, unless that's already
-// under way. A host that fails is skipped, so one dead display box can't keep
-// the server up.
-func (c *controller) shutdown(hosts []string) {
+// shutdown starts powering off the selected hosts (by index) in their
+// order, unless that's already under way; the rest are marked skipped. A
+// host that fails is passed over, so one dead display box can't keep the
+// server up.
+func (c *controller) shutdown(hosts []host, selected []int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.running {
@@ -153,10 +183,24 @@ func (c *controller) shutdown(hosts []string) {
 	}
 	c.running = true
 	c.reset(hosts)
+	chosen := make([]bool, len(hosts))
+	for _, i := range selected {
+		if i >= 0 && i < len(hosts) {
+			chosen[i] = true
+		}
+	}
+	for i := range hosts {
+		if !chosen[i] {
+			c.hosts[i].State = stateSkipped
+		}
+	}
 	go func() {
 		for i, h := range hosts {
+			if !chosen[i] {
+				continue
+			}
 			c.set(i, stateStopping, "")
-			if err := c.powerOff(h); err != nil {
+			if err := c.powerOff(h.Target); err != nil {
 				c.set(i, stateFailed, err.Error())
 			} else {
 				c.set(i, stateOff, "")

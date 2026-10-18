@@ -17,9 +17,12 @@
   #confirm.show { display: grid; }
   #confirm .no { background: var(--card); }
   ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
-  li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; background: var(--card); border-radius: 12px; padding: 12px 14px; }
-  .host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; background: var(--card); border-radius: 12px; padding: 12px 14px; }
+  li input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: var(--stop); }
+  .host { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .addr { display: block; font-size: 13px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
   .state { color: var(--dim); flex: none; }
+  .state.skipped { opacity: .6; }
   .state.off { color: var(--ok); } .state.failed { color: var(--bad); }
   .err { flex-basis: 100%; font-size: 14px; color: var(--bad); }
   #note { margin-top: 16px; }
@@ -27,7 +30,7 @@
 </head>
 <body>
 <h1>Control</h1>
-<p>Shutdown powers off the displays, then the server.</p>
+<p>Tick what to power off. The displays go first, then the server.</p>
 <button id="shutdown">Shutdown</button>
 <div id="confirm"><button class="no" id="no">Cancel</button><button id="yes">Yes, shut down</button></div>
 <ul id="hosts"></ul>
@@ -38,6 +41,7 @@ const confirmBox = document.getElementById('confirm');
 const hostList = document.getElementById('hosts');
 const note = document.getElementById('note');
 let polling = false;
+let chosen = null; // indices of the ticked hosts; all of them to begin with
 
 shutdownBtn.onclick = () => confirmBox.classList.add('show');
 document.getElementById('no').onclick = () => confirmBox.classList.remove('show');
@@ -45,7 +49,7 @@ document.getElementById('yes').onclick = async () => {
   confirmBox.classList.remove('show');
   shutdownBtn.disabled = true;
   try {
-    show(await (await fetch('/rpc/shutdown', {method: 'POST'})).json());
+    show(await (await fetch('/rpc/shutdown', {method: 'POST', body: JSON.stringify({hosts: [...chosen]})})).json());
   } catch (e) {
     note.textContent = 'Could not reach the server: ' + e.message;
     shutdownBtn.disabled = false;
@@ -55,15 +59,32 @@ document.getElementById('yes').onclick = async () => {
 };
 
 function show(s) {
-  hostList.replaceChildren(...s.hosts.map(h => {
+  if (!chosen) chosen = new Set(s.hosts.map((_, i) => i));
+  hostList.replaceChildren(...s.hosts.map((h, i) => {
     const li = document.createElement('li');
-    const name = document.createElement('span');
+    const tick = document.createElement('input');
+    tick.type = 'checkbox';
+    tick.checked = chosen.has(i);
+    tick.disabled = s.running;
+    tick.setAttribute('aria-label', h.name);
+    tick.onchange = () => {
+      tick.checked ? chosen.add(i) : chosen.delete(i);
+      shutdownBtn.disabled = !chosen.size;
+    };
+    const name = document.createElement('label');
     name.className = 'host';
-    name.textContent = h.host;
+    name.textContent = h.name;
+    name.onclick = () => tick.click();
+    if (h.name !== h.host) {
+      const addr = document.createElement('span');
+      addr.className = 'addr';
+      addr.textContent = h.host;
+      name.append(addr);
+    }
     const state = document.createElement('span');
     state.className = 'state ' + h.state;
     state.textContent = h.state;
-    li.append(name, state);
+    li.append(tick, name, state);
     if (h.error) {
       const err = document.createElement('span');
       err.className = 'err';
@@ -74,12 +95,12 @@ function show(s) {
   }));
   if (!s.hosts.length) note.textContent = 'No hosts set up (CONTROL_HOSTS).';
   else if (s.dryRun) note.textContent = 'Dry run: nothing is really powered off.';
-  shutdownBtn.disabled = s.running;
+  shutdownBtn.disabled = s.running || !chosen.size;
   return s;
 }
 
-// The server is the last host, so once it's going down it stops answering:
-// that's the expected end, not an error.
+// The server is the last host, so once it's going down (if it was ticked) it
+// stops answering: that's the expected end, not an error.
 async function poll() {
   if (polling) return;
   polling = true;
@@ -90,7 +111,7 @@ async function poll() {
       s = show(await (await fetch('/rpc/status')).json());
     } catch (e) {
       note.textContent = 'The server has gone down. Everything is off.';
-      for (const st of hostList.querySelectorAll('.state:not(.failed)')) { st.className = 'state off'; st.textContent = 'off'; }
+      for (const st of hostList.querySelectorAll('.state:not(.failed):not(.skipped)')) { st.className = 'state off'; st.textContent = 'off'; }
       break;
     }
     if (!s.running) break;
