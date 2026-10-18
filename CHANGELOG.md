@@ -3,6 +3,12 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.18.1 - 2026-10-18
+
+### Changed
+- info-gui: on the planets page Earth's orbit stays a thin line during the
+  animation and only becomes the zodiac band once the page reaches today.
+
 ## 1.18.0 - 2026-10-18
 
 ### Changed
