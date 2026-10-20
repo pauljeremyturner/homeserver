@@ -59,6 +59,7 @@ services:
     environment:
       <<: *gui-env
       INFO_SERVER_ADDR: ${INFO_SERVER_ADDR}
+      INFO_TOUCH: ${INFO_TOUCH:-auto}
 
   photo-gui:
     <<: *gui

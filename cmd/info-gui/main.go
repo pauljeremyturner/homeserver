@@ -36,8 +36,10 @@ func main() {
 	page := flag.Int("page", 0, "with -screenshot: render page 1 (weather), 2 (markets, the week), 4 (planets), 5 (markets, six months) or 6 (sky)")
 	anim := flag.Duration("anim", time.Hour, "with -screenshot -page 4: how long the page has been up (default: animation finished)")
 	at := flag.String("time", "", "with -screenshot: render as if the clock read this HH:MM today")
+	touch := flag.String("touch", envOr("INFO_TOUCH", "auto"), "swipe between pages, with weather up in between: on, off, or auto (on with a touch screen)")
 	wait := flag.Duration("wait", 4*time.Second, "with -screenshot and live data: how long to wait for the streams first")
 	flag.Parse()
+	useTouch := touchOn(*touch)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -67,7 +69,7 @@ func main() {
 			}
 			now = time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
 		}
-		if err := screenshot(*shot, s, now, displaypb.Page(*page), *anim); err != nil {
+		if err := screenshot(*shot, s, now, displaypb.Page(*page), *anim, useTouch); err != nil {
 			log.Fatalf("screenshot: %v", err)
 		}
 		return
@@ -84,7 +86,7 @@ func main() {
 			// its own title bar.
 			w.Option(app.Decorated(true))
 		}
-		if err := run(w, s); err != nil {
+		if err := run(w, s, useTouch); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -92,8 +94,8 @@ func main() {
 	app.Main()
 }
 
-func run(w *app.Window, s *state) error {
-	u := newUI()
+func run(w *app.Window, s *state, touch bool) error {
+	u := newUI(touch)
 	var ops op.Ops
 	for {
 		switch e := w.Event().(type) {
@@ -124,7 +126,7 @@ func fitMetric(size image.Point) unit.Metric {
 	return unit.Metric{PxPerDp: scale, PxPerSp: scale}
 }
 
-func screenshot(path string, s *state, now time.Time, page displaypb.Page, elapsed time.Duration) error {
+func screenshot(path string, s *state, now time.Time, page displaypb.Page, elapsed time.Duration, touch bool) error {
 	const width, height = designWidth, designHeight
 	win, err := headless.NewWindow(width, height)
 	if err != nil {
@@ -138,7 +140,7 @@ func screenshot(path string, s *state, now time.Time, page displaypb.Page, elaps
 		Constraints: layout.Exact(image.Pt(width, height)),
 		Now:         now,
 	}
-	u := newUI()
+	u := newUI(touch)
 	u.forcePage, u.forceElapsed = page, elapsed
 	u.layout(gtx, gtx.Now, s.snapshot())
 	if err := win.Frame(&ops); err != nil {

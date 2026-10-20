@@ -1,7 +1,8 @@
 #!/bin/sh
 # Writes which output each app goes on and how each screen is rotated
 # (sway's config can't read env vars), then starts sway on the shared
-# socket dir.
+# socket dir. A touch screen is taken to be the info screen (the one info-gui
+# swipes on); left alone, sway spreads it across every screen.
 set -eu
 # compose passes these even when .env leaves them out, and wlroots reads an
 # empty WLR_BACKENDS as "no backends" rather than "pick one".
@@ -17,5 +18,7 @@ workspace 1 output ${INFO_OUTPUT}
 workspace 2 output ${PHOTO_OUTPUT}
 output ${INFO_OUTPUT} transform ${INFO_TRANSFORM:-normal}
 output ${PHOTO_OUTPUT} transform ${PHOTO_TRANSFORM:-normal}
+input type:touch map_to_output ${INFO_OUTPUT}
+input type:tablet_tool map_to_output ${INFO_OUTPUT}
 CONF
 exec seatd-launch -- sway -c /etc/sway/kiosk.config

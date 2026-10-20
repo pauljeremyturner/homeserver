@@ -73,14 +73,18 @@ type ui struct {
 	// forceElapsed is how long it's been up (-anim).
 	forcePage    displaypb.Page
 	forceElapsed time.Duration
+	// touch swaps the timed rotation for swiping (see touch.go); nav is
+	// where it's got to.
+	touch bool
+	nav   touchNav
 }
 
-func newUI() *ui {
+func newUI(touch bool) *ui {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	th.Palette.Fg = colText
 	th.Palette.Bg = colBg
-	return &ui{th: th, start: time.Now()}
+	return &ui{th: th, start: time.Now(), touch: touch}
 }
 
 func (u *ui) label(size float32, c color.NRGBA, weight font.Weight, s string) material.LabelStyle {
@@ -98,18 +102,46 @@ func (u *ui) layout(gtx layout.Context, now time.Time, s snapshot) layout.Dimens
 	// Which page is up, and how far through its time on screen. A pinned
 	// page (-page, for screenshots) doesn't fade and is taken to be up for
 	// a minute.
+	// On a touch screen weather has no period, so no countdown line.
 	page, elapsed, period, alpha := u.forcePage, u.forceElapsed, time.Minute, float32(1)
+	var pages []*displaypb.PageSlot
+	if u.touch {
+		pages = touchPages(s.page)
+	}
 	if page == displaypb.Page_PAGE_UNKNOWN {
 		var since, next time.Time
-		page, since, next = pageShowing(gtx.Now, s.page)
+		if u.touch {
+			u.swipes(gtx, len(pages))
+			page, since, next = u.nav.showing(gtx.Now, pages)
+		} else {
+			page, since, next = pageShowing(gtx.Now, s.page)
+		}
 		elapsed, period = gtx.Now.Sub(since), next.Sub(since)
+		fadeOut := next
+		if next.IsZero() {
+			period, fadeOut = 0, gtx.Now.Add(time.Hour)
+		}
 		var wake time.Time
-		alpha, wake = pageOpacity(gtx.Now, since, next)
+		alpha, wake = pageOpacity(gtx.Now, since, fadeOut)
 		gtx.Execute(op.InvalidateCmd{At: wake})
+	} else if u.touch && page == displaypb.Page_PAGE_WEATHER {
+		period = 0
 	}
 	paint.Fill(gtx.Ops, colBg)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.header(gtx, now, s) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			d := u.header(gtx, now, s)
+			if u.touch {
+				at := 0
+				for i, p := range pages {
+					if p.Page == page {
+						at = i
+					}
+				}
+				pageDots(gtx, layout.FPt(d.Size), len(pages), at)
+			}
+			return d
+		}),
 		layout.Rigid(u.rule),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			defer paint.PushOpacity(gtx.Ops, alpha).Pop()
