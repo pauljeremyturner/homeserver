@@ -3,6 +3,18 @@
 Notable changes to this repo, newest first. Versions are git tags, deployed
 with `./deploy.sh [tag]`.
 
+## 1.19.0 - 2026-10-20
+
+### Added
+- info-gui: on a touch screen, weather is the home page and stays up with
+  no countdown line, and swiping left or right steps through the other
+  pages. Each shows for its slot in the rotation, with its countdown line,
+  then weather comes back. Dots between the clock and the date show which
+  page is up. A touch screen is found by itself; `INFO_TOUCH` (`auto`, `on`
+  or `off`) overrides that. Screens without touch rotate as before.
+- display: sway ties a touch screen (and pen) to the info screen, so
+  touches don't land on the photo screen.
+
 ## 1.18.1 - 2026-10-18
 
 ### Changed
